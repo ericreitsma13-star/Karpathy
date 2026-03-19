@@ -31,32 +31,35 @@ def get_supadata(endpoint, params):
         return None
 
 def scout_market():
-    print(f"🚀 Launching Unwatched Analyst ({datetime.now().strftime('%H:%M')})...")
+    print(f"🚀 Launching Unwatched Analyst...")
     
     try:
-        # PHASE 1: Niche Brainstorming (The Karpathy Strategy)
-        # Gemini identifies a 2026 "Knowledge Debt" niche
-        niche_prompt = (
-            "Identify one high-growth technical niche in March 2026 where YouTube tutorials "
-            "are currently broken or outdated (e.g. Model Context Protocol, PQC migration, "
-            "Next.js 16 Server Actions). Return ONLY a YouTube search query."
-        )
-        niche_res = client.models.generate_content(model=SCOUT_MODEL, contents=niche_prompt)
-        query = niche_res.text.strip().replace('"', '')
-        print(f"🔍 Searching YouTube for: {query}")
+        # PHASE 1: Niche Generation
+        niche_prompt = "Identify a 2026 tech niche with high knowledge debt. Return ONLY a YouTube search query."
+        res = client.models.generate_content(model=SCOUT_MODEL, contents=niche_prompt)
+        query = res.text.strip().replace('"', '')
+        print(f"🔍 Searching: {query}")
 
-        # PHASE 2: Dynamic Search & Social Proof
-        # We find the top 5 videos and pick the one with the most 'Pain' (Comments)
+        # PHASE 2: The Corrected 2026 Search Call
+        # In 2026, Supadata uses the /youtube/search endpoint or 
+        # the /metadata endpoint with a 'search' parameter.
         search_res = get_supadata("youtube/search", {"query": query})
+        
+        # If still 404, Supadata's latest API uses 'metadata' as the search hub
+        if not search_res:
+            print("🔄 404 hit, trying 'metadata' search fallback...")
+            search_res = get_supadata("metadata", {"search": query})
+
         if not search_res or "videos" not in search_res:
-            # Fallback for different Supadata versions
-            search_res = get_supadata("search", {"query": query, "type": "video"})
+            print(f"❌ Could not find videos for '{query}'. Trying a broader term...")
+            search_res = get_supadata("metadata", {"search": "Software Engineering Traps 2026"})
 
         videos = search_res.get("videos", []) if search_res else []
+        
         if not videos:
-            print("❌ No videos found for this niche. Ending cycle.")
+            print("❌ Absolute failure to find videos. Check Supadata Dashboard for API changes.")
             return
-
+            
         # Sort by comment count to find the frustrated users
         top_video = max(videos, key=lambda x: int(x.get('commentCount', 0)) if x.get('commentCount') else 0)
         video_url = f"https://www.youtube.com/watch?v={top_video['id']}"
