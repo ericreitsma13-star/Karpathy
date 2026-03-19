@@ -8,7 +8,7 @@ from datetime import datetime
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 SUPA_KEY = os.environ.get("SUPADATA_API_KEY")
-MODEL_ID = 'gemini-2.0-flash'
+MODEL_ID = 'gemini-2.5-flash-lite'
 
 HEADERS = {"x-api-key": SUPA_KEY}
 MAX_REPAIR_ITERATIONS = 3
