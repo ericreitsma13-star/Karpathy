@@ -22,8 +22,7 @@ jobs:
           python-version: '3.11'
           
       - name: Install dependencies
-        # Added google-generativeai and requests for Supadata
-        run: pip install google-generativeai requests 
+        run: pip install google-genai requests
         
       - name: Run Researcher
         env:
