@@ -2,8 +2,8 @@ name: Karpathy Loop
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # daily at 02:00 UTC
-  workflow_dispatch:      # manual trigger
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,26 +14,23 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install requests google-genai pytest
 
       - name: Run Karpathy Loop
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SUPADATA_API_KEY: ${{ secrets.SUPADATA_API_KEY }}
+          TRANSCRIPTAPI_KEY: ${{ secrets.TRANSCRIPTAPI_KEY }}
         run: python researcher.py
 
       - name: Commit outputs
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add proposed_skill.py test_proposed_skill.py market_research.md next_query.txt skills/
           git diff --cached --quiet || git commit -m "🤖 Karpathy Loop $(date +'%Y-%m-%d')"
