@@ -1,21 +1,40 @@
 name: AI Research
 on: 
-  workflow_dispatch: # This is what creates the 'Run' button
+  workflow_dispatch: # Manual 'Run' button
+  schedule:
+    - cron: '0 2 * * *' # Auto-run at 2 AM daily
   push:
-    branches: [ main ] # This triggers it automatically when you save
+    branches: [ main ] # Auto-run when you save code
 
 jobs:
-  check-ai:
+  run-scout:
     runs-on: ubuntu-latest
+    
+    # 1. CRITICAL: Give the AI permission to write to your repo
+    permissions:
+      contents: write 
+    
     steps:
       - uses: actions/checkout@v4
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          
       - name: Install dependencies
         run: pip install openai duckduckgo-search
+        
       - name: Run Researcher
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python researcher.py
+        
+      # 2. CRITICAL: Save the results back to your GitHub folder
+      - name: Commit and Push Leads
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "Unwatched Bot"
+          git add leads.csv
+          git commit -m "New Unwatched leads found by GPT-5" || echo "No new leads today"
+          git push
