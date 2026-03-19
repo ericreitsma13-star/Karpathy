@@ -1,56 +1,73 @@
 import os
-from openai import OpenAI
-from duckduckgo_search import DDGS
+import json
+import requests
+import google.generativeai as genai
+from datetime import datetime
 
-token = os.environ.get("GITHUB_TOKEN")
-client = OpenAI(base_url="https://models.inference.ai.azure.com", api_key=token)
+# 1. Configuration
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+SUPA_KEY = os.getenv("SUPADATA_API_KEY")
 
-SUBJECTS = [
-    "Edge AI Deployment (Small Models)",
-    "Post-Quantum Cryptography Migration",
-    "GreenOps & Carbon-Aware Coding",
-    "Claude Code & MCP Infrastructure"
-]
+genai.configure(api_key=GEMINI_KEY)
+model = genai.GenerativeModel('gemini-2.5-flash')
 
-def run_scored_research():
-    final_report = f"## 📈 Trend Analysis: {os.popen('date').read()}\n"
-    leaderboard = []
+def get_supadata(endpoint, params):
+    """Helper to call Supadata API"""
+    url = f"https://api.supadata.ai/v1/{endpoint}"
+    headers = {"x-api-key": SUPA_KEY}
+    response = requests.get(url, headers=headers, params=params)
+    return response.json()
 
-    for subject in SUBJECTS:
-        print(f"🧐 Scoring Subject: {subject}...")
-        
-        # Phase 1: Search for real human pain
-        with DDGS() as ddgs:
-            results = [r for r in ddgs.text(f"{subject} error 2026 site:reddit.com", max_results=3)]
-        
-        snippets = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
+def scout_market():
+    print("🚀 Starting Unwatched Scout...")
+    
+    # PHASE 1: Generate Search Query
+    # Gemini identifies a 2026 tech 'Trap' (e.g. Claude MCP, PQC, GreenOps)
+    thinking_prompt = """
+    Identify one high-growth technical niche in March 2026 where YouTube tutorials are 
+    likely outdated or 'Traps' (e.g. Claude MCP, PQC migration, Next.js 16 server actions).
+    Provide ONLY a YouTube search query to find these videos.
+    """
+    query = model.generate_content(thinking_prompt).text.strip().replace('"', '')
+    print(f"🔍 Searching YouTube for: {query}")
 
-        # Phase 2: GPT-5 calculates the 'Pain Score'
-        scoring_prompt = f"""
-        Analyze these search results for {subject}:
-        {snippets}
-        
-        Task: 
-        1. Rate the 'Knowledge Debt' from 1-10 (How broken are current tutorials?).
-        2. Identify the 'Toxic Advice' (What old method is causing the error?).
-        3. Output only: SCORE | TOXIC_ADVICE | SUMMARY
-        """
-        
-        res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": scoring_prompt}]
-        )
-        
-        score_data = res.choices[0].message.content
-        leaderboard.append((subject, score_data))
+    # PHASE 2: Mock Search & Deep Intelligence
+    # Since we can't 'search' YouTube directly via Supadata without a URL, 
+    # we target a known high-signal 2026 topic if no specific URL is provided.
+    # In a full loop, you'd pass a specific URL found via a search API.
+    target_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Placeholder
+    
+    print(f"📊 Pulling Intel for: {target_url}")
+    metadata = get_supadata("metadata", {"url": target_url})
+    transcript = get_supadata("transcript", {"url": target_url, "text": "true"})
 
-    # Phase 3: Sort by Score and Save
-    leaderboard.sort(key=lambda x: x[1].split('|')[0], reverse=True)
+    # PHASE 3: The 'Karpathy' Synthesis
+    analysis_prompt = f"""
+    Analyze this technical content for the 'Unwatched' App.
+    Video Title: {metadata.get('title', 'Unknown')}
+    Transcript: {str(transcript.get('content', ''))[:5000]}
+    
+    Format the output as a Markdown section for 'market_research.md'.
+    Include:
+    1. The 'Trap' (What is outdated or confusing in this video?)
+    2. The 'Fix' (The Skill Block Unwatched should provide).
+    3. Signal Score (1-10) based on developer pain.
+    """
+    
+    research_output = model.generate_content(analysis_prompt).text
+    
+    # PHASE 4: Write to File
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    header = f"\n\n---\n## 📈 Trend Analysis: {timestamp}\n"
     
     with open("market_research.md", "a") as f:
-        f.write(final_report)
-        for sub, data in leaderboard:
-            f.write(f"### [{sub}]\n{data}\n\n")
+        f.write(header)
+        f.write(research_output)
+    
+    print("✅ Market Intelligence Updated.")
 
 if __name__ == "__main__":
-    run_scored_research()
+    if not GEMINI_KEY or not SUPA_KEY:
+        print("❌ Missing API Keys. Check your GitHub Secrets.")
+    else:
+        scout_market()
