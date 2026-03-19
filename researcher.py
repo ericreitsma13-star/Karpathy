@@ -3,75 +3,102 @@ import requests
 from google import genai
 from datetime import datetime
 
-# 1. Setup - Explicitly using the current stable 2026 ID
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+# 1. API Configuration
+# These are pulled from your GitHub Secrets
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 SUPA_KEY = os.environ.get("SUPADATA_API_KEY")
 
-# The most stable ID for free-tier automation in 2026
-MODEL_ID = 'gemini-2.0-flash-lite' 
+# 2. Client Setup (2026 Unified SDK)
+client = genai.Client(api_key=GEMINI_KEY)
+
+# Using your verified 2.5 Flash Lite quota for the scout (Unlimited RPD)
+# Using 2.5 Flash for the deep analyst (10k RPD)
+SCOUT_MODEL = 'gemini-2.5-flash-lite'
+ANALYST_MODEL = 'gemini-2.5-flash'
 
 def get_supadata(endpoint, params):
+    """Fetcher for Supadata.ai with error handling"""
     url = f"https://api.supadata.ai/v1/{endpoint}"
     headers = {"x-api-key": SUPA_KEY}
     try:
         response = requests.get(url, headers=headers, params=params)
         if response.status_code == 200:
             return response.json()
-        print(f"⚠️ Supadata {endpoint} failed: {response.status_code}")
+        print(f"⚠️ Supadata {endpoint} error: {response.status_code}")
         return None
-    except:
+    except Exception as e:
+        print(f"❌ Supadata Request Failed: {e}")
         return None
 
 def scout_market():
-    print(f"🚀 Starting Unwatched Scout via {MODEL_ID}...")
+    print(f"🚀 Launching Unwatched Analyst ({datetime.now().strftime('%H:%M')})...")
     
     try:
-        # PHASE 1: Niche Generation
-        prompt = "Identify a 2026 tech niche with high knowledge debt. Return ONLY a YouTube search query."
-        res = client.models.generate_content(model=MODEL_ID, contents=prompt)
-        query = res.text.strip().replace('"', '')
-        print(f"🔍 Searching: {query}")
+        # PHASE 1: Niche Brainstorming (The Karpathy Strategy)
+        # Gemini identifies a 2026 "Knowledge Debt" niche
+        niche_prompt = (
+            "Identify one high-growth technical niche in March 2026 where YouTube tutorials "
+            "are currently broken or outdated (e.g. Model Context Protocol, PQC migration, "
+            "Next.js 16 Server Actions). Return ONLY a YouTube search query."
+        )
+        niche_res = client.models.generate_content(model=SCOUT_MODEL, contents=niche_prompt)
+        query = niche_res.text.strip().replace('"', '')
+        print(f"🔍 Searching YouTube for: {query}")
 
-        # PHASE 2: Search (Supadata Search)
-        # Trying 'youtube/search' then 'search' as fallback
-        search_results = get_supadata("youtube/search", {"query": query})
-        if not search_results or "videos" not in search_results:
-            search_results = get_supadata("search", {"query": query, "type": "video"})
+        # PHASE 2: Dynamic Search & Social Proof
+        # We find the top 5 videos and pick the one with the most 'Pain' (Comments)
+        search_res = get_supadata("youtube/search", {"query": query})
+        if not search_res or "videos" not in search_res:
+            # Fallback for different Supadata versions
+            search_res = get_supadata("search", {"query": query, "type": "video"})
 
-        videos = search_results.get("videos", []) if search_results else []
+        videos = search_res.get("videos", []) if search_res else []
         if not videos:
-            print("❌ No videos found. Check Supadata search credits.")
+            print("❌ No videos found for this niche. Ending cycle.")
             return
 
-        # PHASE 3: Intel Gathering
-        # Target the video with the most comments (Social Proof)
+        # Sort by comment count to find the frustrated users
         top_video = max(videos, key=lambda x: int(x.get('commentCount', 0)) if x.get('commentCount') else 0)
         video_url = f"https://www.youtube.com/watch?v={top_video['id']}"
-        print(f"📊 Analyzing: {top_video['title']}")
+        comment_count = top_video.get('commentCount', 0)
+        
+        print(f"📊 Targeted: {top_video['title']}")
+        print(f"💬 Signal: {comment_count} comments found.")
 
+        # PHASE 3: Deep Intel Extraction
+        # Pull clean transcript for RAG analysis
         transcript_data = get_supadata("transcript", {"url": video_url, "text": "true"})
-        transcript_text = transcript_data.get("content", "") if transcript_data else "No transcript."
+        transcript_text = transcript_data.get("content", "") if transcript_data else "No transcript available."
 
-        # PHASE 4: Synthesis
+        # PHASE 4: Synthesis (The Analyst Brain)
         analysis_prompt = (
-            f"Video: {top_video['title']}\n"
-            f"Transcript: {str(transcript_text)[:5000]}\n\n"
-            "Format as Markdown: Trap, Fix, Signal Score (1-10)."
+            f"Analyze this content for the 'Unwatched' App.\n"
+            f"Video Title: {top_video['title']}\n"
+            f"Frustrated User Count: {comment_count}\n"
+            f"Transcript Snippet: {str(transcript_text)[:8000]}\n\n"
+            "Identify:\n"
+            "1. THE TRAP: Why is this video misleading or outdated in 2026?\n"
+            "2. THE FIX: What is the specific 'Skill Block' Unwatched should provide?\n"
+            "3. SIGNAL SCORE: 1-10 based on user frustration.\n"
+            "Output in Markdown format."
         )
-        report = client.models.generate_content(model=MODEL_ID, contents=analysis_prompt)
+        
+        report = client.models.generate_content(model=ANALYST_MODEL, contents=analysis_prompt)
 
-        # PHASE 5: Write to File
+        # PHASE 5: Update the Market Intelligence Map
         with open("market_research.md", "a") as f:
             f.write(f"\n\n---\n### 📈 Trend: {datetime.now().strftime('%Y-%m-%d')} | {top_video['title']}\n")
-            f.write(f"**URL:** {video_url}\n{report.text}")
+            f.write(f"**Video URL:** {video_url}\n")
+            f.write(f"**Social Signal:** {comment_count} comments\n\n")
+            f.write(report.text)
         
-        print("✅ Market Intelligence Map Updated.")
+        print(f"✅ Market Intelligence Map Updated. Found a {top_video['title']} lead.")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Execution Error: {e}")
 
 if __name__ == "__main__":
-    if not SUPA_KEY:
-        print("❌ Missing SUPADATA_API_KEY.")
+    if not GEMINI_KEY or not SUPA_KEY:
+        print("❌ CRITICAL: Missing API keys in environment.")
     else:
         scout_market()
