@@ -1,3 +1,51 @@
+import os
+import json
+import subprocess
+import time
+import requests
+from google import genai
+from datetime import datetime
+
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+SUPA_KEY = os.environ.get("SUPADATA_API_KEY")
+MODEL_ID = 'gemini-2.0-flash'
+
+HEADERS = {"x-api-key": SUPA_KEY}
+MAX_REPAIR_ITERATIONS = 3
+
+def supadata_get(endpoint, params):
+    time.sleep(2.5)
+    r = requests.get(f"https://api.supadata.ai/v1/{endpoint}", headers=HEADERS, params=params)
+    print(f"📡 {endpoint} | {r.status_code}")
+    if r.status_code == 200:
+        return r.json()
+    print(f"⚠️ {r.text}")
+    return None
+
+def run_tests():
+    result = subprocess.run(
+        ["python", "-m", "pytest", "test_proposed_skill.py", "-v", "--tb=short"],
+        capture_output=True, text=True
+    )
+    return result.returncode == 0, result.stdout + result.stderr
+
+def extract_skill_json(text):
+    clean = text.strip().replace("```json", "").replace("```python", "").replace("```", "")
+    return json.loads(clean)
+
+def write_skill_files(skill_data):
+    with open("proposed_skill.py", "w") as f:
+        f.write(skill_data["implementation_code"])
+    with open("test_proposed_skill.py", "w") as f:
+        f.write(f"import sys\nfrom proposed_skill import *\n\n{skill_data['unit_test']}")
+
+def log_result(skill_name, video, iterations, test_output):
+    with open("market_research.md", "a", encoding="utf-8") as f:
+        f.write(f"\n\n---\n### 📈 {datetime.now().strftime('%Y-%m-%d')} | {skill_name}\n")
+        f.write(f"**Source:** https://youtube.com/watch?v={video['id']} — {video['title']}\n")
+        f.write(f"**Iterations to convergence:** {iterations}\n\n")
+        f.write(f"```\n{test_output[:1000]}\n```\n")
+
 def scout_and_synthesize():
     print("🚀 [Karpathy Loop] Hunting for High-Signal Code...")
 
@@ -80,17 +128,7 @@ def scout_and_synthesize():
         print(f"⚠️  Max iterations reached. Skill unstable — skipping.")
         return
 
-    # ← correct position: after the for loop, only reached if no video passed the filter
     print("⚠️ No high-signal videos found in this batch. No skill staged.")
-
-
-def log_result(skill_name, video, iterations, test_output):
-    with open("market_research.md", "a", encoding="utf-8") as f:
-        f.write(f"\n\n---\n### 📈 {datetime.now().strftime('%Y-%m-%d')} | {skill_name}\n")
-        f.write(f"**Source:** https://youtube.com/watch?v={video['id']} — {video['title']}\n")
-        f.write(f"**Iterations to convergence:** {iterations}\n\n")
-        f.write(f"```\n{test_output[:1000]}\n```\n")
-
 
 if __name__ == "__main__":
     scout_and_synthesize()
