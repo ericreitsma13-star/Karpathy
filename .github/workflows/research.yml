@@ -1,52 +1,40 @@
-name: Unwatched AI Research
+name: Karpathy Loop
 
 on:
   schedule:
-    - cron: '0 2 * * *' # Auto-run once a day at 2 AM UTC
-  workflow_dispatch: # Allows you to manually click "Run workflow" for testing
-  push:
-    branches: [ main ]
-    # CRITICAL: Do not run the AI loop if only these files changed
-    paths-ignore:
-      - 'researcher.py'
-      - 'README.md'
-      - '.gitignore'
-      - '.github/workflows/**'
+    - cron: '0 2 * * *'  # daily at 07:00 UTC
+  workflow_dispatch:      # keep manual trigger as safety valve
+
+permissions:
+  contents: write         # needed for the git commit step
 
 jobs:
-  run-scout:
+  scout:
     runs-on: ubuntu-latest
-    
-    # Gives the Action permission to save the research back to your repo
-    permissions:
-      contents: write 
-    
+    timeout-minutes: 15   # bail if Gemini/Supadata hangs
+
     steps:
-      - name: Checkout Code
+      - name: Checkout repo
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+
       - name: Install dependencies
-        run: pip install google-genai requests 
-        
-      - name: Run Researcher Script
+        run: pip install requests google-genai pytest
+
+      - name: Run Karpathy Loop
         env:
-          # Pulls your secure keys from Settings > Secrets > Actions
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPADATA_API_KEY: ${{ secrets.SUPADATA_API_KEY }}
         run: python researcher.py
-        
-      - name: Commit and Push Results
+
+      - name: Commit outputs
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "Unwatched Analyst"
-          # Ensure the file exists so the 'git add' doesn't fail
-          touch market_research.md 
-          git add market_research.md
-          # Only commit if there are actually new findings
-          git commit -m "📊 Intelligence Map Updated: $(date +'%Y-%m-%d')" || echo "No changes to commit"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add proposed_skill.py test_proposed_skill.py market_research.md
+          git diff --cached --quiet || git commit -m "🤖 Karpathy Loop $(date +'%Y-%m-%d')"
           git push
