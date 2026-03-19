@@ -1,4 +1,4 @@
-name: AI Smoke Test
+name: AI Research
 on: 
   workflow_dispatch: # This is what creates the 'Run' button
   push:
