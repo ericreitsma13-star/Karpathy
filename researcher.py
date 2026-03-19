@@ -29,23 +29,23 @@ def scout_market():
 
     query_text = "Cursor AI coding agent tutorial 2026"
 
-    # PHASE 2: SEARCH — correct param is 'query', not 'text'
+    # PHASE 2: SEARCH
     search_res = get_supadata("youtube/search", {"query": query_text})
 
-    if not search_res or "videos" not in search_res or not search_res["videos"]:
-        print("❌ Search failed or returned empty.")
-        print(f"   Raw response: {search_res}")
+    results = [r for r in search_res.get("results", []) if r.get("type") == "video"]
+
+    if not results:
+        print("❌ Search returned no video results.")
         return
 
-    top_video = search_res["videos"][0]
+    top_video = results[0]
     video_url = f"https://www.youtube.com/watch?v={top_video['id']}"
     print(f"📊 Targeted: {top_video['title']}")
 
-    # PHASE 4: TRANSCRIPT — text=true returns plain string instead of chunked array
+    # PHASE 4: TRANSCRIPT
     t_res = get_supadata("youtube/transcript", {"url": video_url, "text": "true"})
 
     if t_res:
-        # When text=true, content is a plain string
         transcript_text = t_res.get("content", "No transcript.")
     else:
         transcript_text = "No transcript."
