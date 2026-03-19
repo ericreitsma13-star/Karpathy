@@ -1,145 +1,245 @@
 import sys
 from proposed_skill import *
 
-from datetime import datetime, timedelta
 import pytest
+import collections
+from datetime import datetime, timedelta
+import functools
 
-# The actual classes DAG, DummyOperator, etc., are made available via 'proposed_skill.'
-# within the test environment.
+# Mock task functions
+def mock_task_success():
+    """A task that always succeeds."""
+    return "success"
 
-def test_dag_creation():
-    """Test that the DAG object is created correctly with basic properties."""
-    dag = proposed_skill.define_etl_workflow_dag()
-    assert isinstance(dag, proposed_skill.DAG)
-    assert dag.dag_id == "etl_data_processing_workflow_conceptual"
-    assert dag.start_date == datetime(2023, 1, 1, 0, 0, 0)
-    assert dag.schedule_interval == timedelta(days=1)
-    assert not dag.catchup
-    assert "data_engineering" in dag.tags
-    assert "etl" in dag.tags
-    assert "conceptual" in dag.tags
-    assert len(dag.tasks) > 0 # Should have tasks
+def mock_task_fail():
+    """A task that always fails."""
+    raise ValueError("Task failed intentionally")
 
-def test_task_creation_and_registration():
-    """Test that tasks are created and registered within the DAG."""
-    dag = proposed_skill.define_etl_workflow_dag()
-    assert len(dag.tasks) == 6 # start, extract, transform, load, check_disk_space, end
+def mock_task_with_args(arg1, kwarg1="default"):
+    """A task that accepts arguments."""
+    return f"arg1={arg1}, kwarg1={kwarg1}"
 
-    assert "start_pipeline" in dag.tasks
-    assert isinstance(dag.get_task("start_pipeline"), proposed_skill.DummyOperator)
+# Assume SimpleWorkflowManager is available from 'proposed_skill'
 
-    assert "extract_from_source_api" in dag.tasks
-    extract_task = dag.get_task("extract_from_source_api")
-    assert isinstance(extract_task, proposed_skill.PythonOperator)
-    assert extract_task.python_callable == proposed_skill.extract_data_from_api
+def test_workflow_init():
+    workflow_id = "test_workflow"
+    start_date = datetime(2023, 1, 1)
+    schedule = timedelta(hours=1)
+    workflow = SimpleWorkflowManager(workflow_id, start_date, schedule)
+    assert workflow.workflow_id == workflow_id
+    assert workflow.start_date == start_date
+    assert workflow.schedule_interval == schedule
+    assert workflow.tasks == {}
+    assert workflow.dependencies == collections.defaultdict(list)
 
-    assert "transform_and_aggregate_data" in dag.tasks
-    transform_task = dag.get_task("transform_and_aggregate_data")
-    assert isinstance(transform_task, proposed_skill.PythonOperator)
-    assert transform_task.python_callable == proposed_skill.transform_and_clean_data
+def test_add_task_success():
+    workflow = SimpleWorkflowManager("test_workflow")
+    workflow.add_task("task_a", mock_task_success)
+    assert "task_a" in workflow.tasks
+    assert workflow.tasks["task_a"]['callable'] == mock_task_success
 
-    assert "load_to_delta_lake" in dag.tasks
-    load_task = dag.get_task("load_to_delta_lake")
-    assert isinstance(load_task, proposed_skill.PythonOperator)
-    assert load_task.python_callable == proposed_skill.load_data_to_storage
+def test_add_task_with_args():
+    workflow = SimpleWorkflowManager("test_workflow")
+    workflow.add_task("task_b", mock_task_with_args, "value1", kwarg1="value2")
+    assert "task_b" in workflow.tasks
+    assert workflow.tasks["task_b"]['callable'] == mock_task_with_args
+    assert workflow.tasks["task_b"]['args'] == ("value1",)
+    assert workflow.tasks["task_b"]['kwargs'] == {"kwarg1": "value2"}
 
-    assert "check_disk_space" in dag.tasks
-    bash_task = dag.get_task("check_disk_space")
-    assert isinstance(bash_task, proposed_skill.BashOperator)
-    assert bash_task.bash_command == "echo 'Checking disk space...'"
+def test_add_task_duplicate_id_fails():
+    workflow = SimpleWorkflowManager("test_workflow")
+    workflow.add_task("task_a", mock_task_success)
+    with pytest.raises(ValueError, match="already exists"):
+        workflow.add_task("task_a", mock_task_success)
 
-    assert "end_pipeline" in dag.tasks
-    assert isinstance(dag.get_task("end_pipeline"), proposed_skill.DummyOperator)
+def test_add_task_non_callable_fails():
+    workflow = SimpleWorkflowManager("test_workflow")
+    with pytest.raises(ValueError, match="must be a function or callable object"):
+        workflow.add_task("task_a", "not_a_callable")
 
-def test_task_dependencies():
-    """Test that task dependencies are correctly established as per the workflow logic."""
-    dag = proposed_skill.define_etl_workflow_dag()
+def test_add_dependency_success():
+    workflow = SimpleWorkflowManager("test_workflow")
+    workflow.add_task("task_a", mock_task_success)
+    workflow.add_task("task_b", mock_task_success)
+    workflow.add_dependency("task_a", "task_b")
+    assert "task_b" in workflow.dependencies["task_a"]
+    assert "task_a" in workflow.reverse_dependencies["task_b"]
 
-    start_task = dag.get_task("start_pipeline")
-    extract_task = dag.get_task("extract_from_source_api")
-    transform_task = dag.get_task("transform_and_aggregate_data")
-    load_task = dag.get_task("load_to_delta_lake")
-    check_task = dag.get_task("check_disk_space")
-    end_task = dag.get_task("end_pipeline")
+def test_add_dependency_unknown_task_fails():
+    workflow = SimpleWorkflowManager("test_workflow")
+    workflow.add_task("task_a", mock_task_success)
+    with pytest.raises(ValueError, match="Upstream task 'task_x' not found."):
+        workflow.add_dependency("task_x", "task_a")
+    with pytest.raises(ValueError, match="Downstream task 'task_y' not found."):
+        workflow.add_dependency("task_a", "task_y")
 
-    # start_task >> extract_task
-    assert {extract_task.task_id} == start_task.downstream_task_ids
-    assert {start_task.task_id} == extract_task.upstream_task_ids
-
-    # extract_task >> transform_task
-    assert {transform_task.task_id} == extract_task.downstream_task_ids
-    assert {extract_task.task_id} == transform_task.upstream_task_ids
-
-    # transform_task >> [load_task, check_disk_space_task]
-    assert {load_task.task_id, check_task.task_id} == transform_task.downstream_task_ids
-    assert {transform_task.task_id} == load_task.upstream_task_ids
-    assert {transform_task.task_id} == check_task.upstream_task_ids
-
-    # [load_task, check_disk_space_task] >> end_task
-    assert {end_task.task_id} == load_task.downstream_task_ids
-    assert {end_task.task_id} == check_task.downstream_task_ids
-    assert {load_task.task_id, check_task.task_id} == end_task.upstream_task_ids
-
-    # Verify no unexpected dependencies
-    assert len(start_task.upstream_task_ids) == 0
-    assert len(end_task.downstream_task_ids) == 0
-
-def test_invalid_operator_init():
-    """Test error handling for invalid operator initialization parameters."""
-    with proposed_skill.DAG(dag_id="test_dag", start_date=datetime.now()) as dag:
-        with pytest.raises(ValueError, match="task_id must be a non-empty string."):
-            proposed_skill.DummyOperator(task_id="", dag=dag)
-        with pytest.raises(TypeError, match="python_callable must be a callable function."):
-            proposed_skill.PythonOperator(task_id="invalid_python", python_callable="not_a_func", dag=dag)
-        with pytest.raises(TypeError, match="bash_command must be a non-empty string."):
-            proposed_skill.BashOperator(task_id="invalid_bash_type", bash_command=123, dag=dag)
-        with pytest.raises(TypeError, match="bash_command must be a non-empty string."):
-            proposed_skill.BashOperator(task_id="invalid_bash_empty", bash_command="", dag=dag)
-
-def test_invalid_dag_init():
-    """Test error handling for invalid DAG initialization parameters."""
-    with pytest.raises(ValueError, match="dag_id must be a non-empty string."):
-        proposed_skill.DAG(dag_id="", start_date=datetime.now())
-    with pytest.raises(TypeError, match="start_date must be a datetime object."):
-        proposed_skill.DAG(dag_id="test_dag_id", start_date="not_a_date")
-
-def test_duplicate_task_id():
-    """Test that adding a task with a duplicate ID to a DAG raises an error."""
-    with proposed_skill.DAG(dag_id="test_dag_duplicate", start_date=datetime.now()) as dag:
-        proposed_skill.DummyOperator(task_id="task_A", dag=dag)
-        with pytest.raises(ValueError, match="Task with ID 'task_A' already exists in DAG 'test_dag_duplicate'."):
-            proposed_skill.DummyOperator(task_id="task_A", dag=dag)
-
-def test_dependency_across_dags():
-    """Test that establishing a dependency between tasks from different DAGs raises an error."""
-    dag_A = proposed_skill.DAG(dag_id="DagA", start_date=datetime.now())
-    dag_B = proposed_skill.DAG(dag_id="DagB", start_date=datetime.now())
-
-    task_a = proposed_skill._MockOperator(task_id="task_a", dag=dag_A)
-    task_b = proposed_skill._MockOperator(task_id="task_b", dag=dag_B)
-
-    with pytest.raises(ValueError, match="Tasks must belong to the same DAG to establish dependencies."):
-        task_a >> task_b
-
-def test_task_not_in_dag_dependency():
-    """Test dependency where one task is not explicitly associated with a DAG."""
-    # This test relies on the implicit current_dag behavior or explicit dag=None. 
-    # The current implementation of _MockOperator's __init__ requires dag to be set either explicitly or through _MockDAGContext
-    # If dag is None for a task, it cannot form dependencies, as upstream.dag or downstream.dag would be None.
+def test_add_dependency_cyclic_fails():
+    workflow = SimpleWorkflowManager("test_workflow_cycle_add")
+    workflow.add_task("task_a", mock_task_success)
+    workflow.add_task("task_b", mock_task_success)
+    workflow.add_dependency("task_a", "task_b")
     
-    # Scenario: Task initialized without a DAG context and without explicit dag assignment
-    task_c = proposed_skill._MockOperator(task_id="task_c") # task_c.dag is None
-    task_d = proposed_skill._MockOperator(task_id="task_d") # task_d.dag is None
+    with pytest.raises(ValueError, match="creates a cycle"):
+        workflow.add_dependency("task_b", "task_a")
 
-    # This should technically fail due to None != None (which is false) and then fail on add_task to a None-dag
-    # However, the current _add_dependency checks for upstream.dag != downstream.dag, which would be (None != None) -> False
-    # So, the ValueError is not directly triggered for None-DAGs. Instead, task_ids are added to empty sets.
-    # This reveals a subtle difference from real Airflow where tasks *must* be part of a DAG for dependencies.
-    # For this conceptual model, let's assume tasks get a dag if explicitly passed or context.current_dag is active.
+def test_run_workflow_no_dependencies():
+    workflow = SimpleWorkflowManager("test_workflow_no_dep")
+    task_log = []
+    def log_task(task_id):
+        task_log.append(task_id)
+    workflow.add_task("task_1", functools.partial(log_task, "task_1"))
+    workflow.add_task("task_2", functools.partial(log_task, "task_2"))
     
-    # To properly test the 'tasks must belong to the same DAG' validation:
-    # - Tasks must have their 'dag' attribute set to non-None DAG objects.
-    # - Those DAG objects must be distinct.
+    run_output = workflow.run_workflow()
     
-    # The test_dependency_across_dags already covers the main scenario.
-    pass
+    # Check overall status
+    assert run_output['overall_status'] == 'success'
+    assert len(run_output['task_runs']) == 2
+    
+    # Check individual task statuses
+    task_statuses = {t['task_id']: t['status'] for t in run_output['task_runs']}
+    assert task_statuses.get('task_1') == 'success'
+    assert task_statuses.get('task_2') == 'success'
+
+    # The current implementation sorts ready_tasks, so we expect a sorted order.
+    executed_task_ids = [t['task_id'] for t in run_output['task_runs']]
+    assert executed_task_ids == ['task_1', 'task_2'] # Sorted task_ids
+
+def test_run_workflow_with_dependencies():
+    workflow = SimpleWorkflowManager("test_workflow_deps")
+    execution_order = []
+
+    def task_a():
+        execution_order.append("task_a")
+
+    def task_b():
+        execution_order.append("task_b")
+
+    def task_c():
+        execution_order.append("task_c")
+
+    workflow.add_task("task_a", task_a)
+    workflow.add_task("task_b", task_b)
+    workflow.add_task("task_c", task_c)
+
+    # a -> b, a -> c
+    workflow.add_dependency("task_a", "task_b")
+    workflow.add_dependency("task_a", "task_c")
+
+    run_output = workflow.run_workflow()
+
+    assert run_output['overall_status'] == 'success'
+    assert len(run_output['task_runs']) == 3
+
+    # Task 'a' must run first
+    assert execution_order[0] == "task_a"
+    # 'b' and 'c' can run in any order after 'a' (but sorted for this simple impl)
+    assert set(execution_order[1:]) == {"task_b", "task_c"}
+    
+    task_statuses = {t['task_id']: t['status'] for t in run_output['task_runs']}
+    assert task_statuses.get('task_a') == 'success'
+    assert task_statuses.get('task_b') == 'success'
+    assert task_statuses.get('task_c') == 'success'
+
+def test_run_workflow_complex_dependencies():
+    workflow = SimpleWorkflowManager("complex_workflow")
+    execution_order = []
+
+    def log_task(task_id):
+        execution_order.append(task_id)
+
+    workflow.add_task("extract", functools.partial(log_task, "extract"))
+    workflow.add_task("transform_1", functools.partial(log_task, "transform_1"))
+    workflow.add_task("transform_2", functools.partial(log_task, "transform_2"))
+    workflow.add_task("load_dim", functools.partial(log_task, "load_dim"))
+    workflow.add_task("load_fact", functools.partial(log_task, "load_fact"))
+
+    workflow.add_dependency("extract", "transform_1")
+    workflow.add_dependency("extract", "transform_2")
+    workflow.add_dependency("transform_1", "load_dim")
+    workflow.add_dependency("transform_2", "load_fact")
+    workflow.add_dependency("load_dim", "load_fact") # load_fact also depends on load_dim
+
+    run_output = workflow.run_workflow()
+
+    assert run_output['overall_status'] == 'success'
+    assert len(run_output['task_runs']) == 5
+
+    # 'extract' must be first
+    assert execution_order[0] == "extract"
+    # 'transform_1' and 'transform_2' must be after 'extract'
+    assert "extract" not in execution_order[1:]
+    # 'load_dim' must be after 'transform_1'
+    assert execution_order.index("transform_1") < execution_order.index("load_dim")
+    # 'load_fact' must be after 'transform_2' and 'load_dim'
+    assert execution_order.index("transform_2") < execution_order.index("load_fact")
+    assert execution_order.index("load_dim") < execution_order.index("load_fact")
+
+    task_statuses = {t['task_id']: t['status'] for t in run_output['task_runs']}
+    for task_id in ["extract", "transform_1", "transform_2", "load_dim", "load_fact"]:
+        assert task_statuses.get(task_id) == 'success'
+
+def test_run_workflow_task_failure():
+    workflow = SimpleWorkflowManager("test_workflow_failure")
+    execution_order = []
+
+    def task_a_success():
+        execution_order.append("task_a")
+        return "success"
+
+    def task_b_fail():
+        execution_order.append("task_b")
+        raise ValueError("Task B failed!")
+
+    def task_c_dependent():
+        execution_order.append("task_c")
+        return "success"
+
+    workflow.add_task("task_a", task_a_success)
+    workflow.add_task("task_b", task_b_fail)
+    workflow.add_task("task_c", task_c_dependent)
+
+    # a -> b, b -> c
+    workflow.add_dependency("task_a", "task_b")
+    workflow.add_dependency("task_b", "task_c")
+
+    run_output = workflow.run_workflow()
+
+    assert run_output['overall_status'] == 'failed_with_errors' # B failed
+    assert len(run_output['task_runs']) == 3
+    
+    task_statuses = {t['task_id']: t['status'] for t in run_output['task_runs']}
+    assert task_statuses.get('task_a') == 'success'
+    assert task_statuses.get('task_b') == 'failed'
+    assert task_statuses.get('task_c') == 'success' # C runs because B is 'completed' (failed but done)
+
+    # Check order
+    assert execution_order == ["task_a", "task_b", "task_c"]
+
+def test_simulate_cron_scheduling():
+    start_date = datetime(2023, 1, 1, 0, 0, 0)
+    schedule_interval = timedelta(days=1)
+    workflow = SimpleWorkflowManager("test_cron_workflow", start_date, schedule_interval)
+    
+    call_times = []
+    def record_call_time(execution_time_str):
+        call_times.append(datetime.fromisoformat(execution_time_str))
+
+    # Add a task that logs its execution time, passed from the run_workflow log
+    workflow.add_task("scheduled_task", functools.partial(record_call_time, execution_time_str=None))
+
+    num_runs = 3
+    simulated_logs = workflow.simulate_cron_scheduling(num_runs=num_runs)
+
+    assert len(simulated_logs) == num_runs
+    
+    expected_times = [start_date + i * schedule_interval for i in range(num_runs)]
+    for i, log in enumerate(simulated_logs):
+        assert datetime.fromisoformat(log['execution_time']) == expected_times[i]
+        assert log['overall_status'] == 'success'
+
+def test_simulate_cron_no_schedule_interval_fails():
+    workflow = SimpleWorkflowManager("no_schedule_workflow")
+    workflow.add_task("task_1", mock_task_success)
+    with pytest.raises(ValueError, match="No schedule interval defined"):
+        workflow.simulate_cron_scheduling(num_runs=1)
