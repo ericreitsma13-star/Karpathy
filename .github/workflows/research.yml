@@ -27,7 +27,8 @@ jobs:
         
       - name: Run Researcher
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This maps your misspelled secret to the variable the script expects
+          GITHUB_TOKEN: ${{ secrets.RESEARCH_TOKEM }} 
         run: python researcher.py
         
       # 2. CRITICAL: Save the results back to your GitHub folder
