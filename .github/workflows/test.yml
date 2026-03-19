@@ -1,0 +1,21 @@
+name: AI Smoke Test
+on: 
+  workflow_dispatch: # This is what creates the 'Run' button
+  push:
+    branches: [ main ] # This triggers it automatically when you save
+
+jobs:
+  check-ai:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install openai
+      - name: Run Smoke Test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python smoke_test.py
