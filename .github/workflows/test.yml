@@ -14,8 +14,8 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install openai
-      - name: Run Smoke Test
+        run: pip install openai duckduckgo-search
+      - name: Run Researcher
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python smoke_test.py
+        run: python researcher.py
