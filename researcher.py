@@ -9,47 +9,50 @@ client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 SUPA_KEY = os.environ.get("SUPADATA_API_KEY")
 MODEL_ID = 'gemini-2.5-flash-lite' 
 
-def get_supadata(endpoint, data_payload):
-    """2026 POST-based fetcher for Supadata"""
+def get_supadata(endpoint, params):
+    """Fetcher using verified 2026 GET pattern"""
     url = f"https://api.supadata.ai/v1/{endpoint}"
-    headers = {
-        "x-api-key": SUPA_KEY,
-        "Content-Type": "application/json"
-    }
+    headers = {"x-api-key": SUPA_KEY}
     
     # 2026 Cooldown
     time.sleep(2) 
     
-    # We use .post() with json= to ensure 'query' is sent in the body
-    try:
-        response = requests.post(url, headers=headers, json=data_payload)
-        if response.status_code == 200:
-            return response.json()
+    # The Error 400 earlier said 'query: Required', so we use 'query'
+    response = requests.get(url, headers=headers, params=params)
+    
+    if response.status_code != 200:
         print(f"⚠️ Supadata {endpoint} Error {response.status_code}: {response.text}")
         return None
-    except Exception as e:
-        print(f"❌ Connection Error: {e}")
-        return None
+    return response.json()
 
 def scout_market():
-    print(f"🚀 Launching Unwatched Analyst (JSON-POST Mode)...")
+    print(f"🚀 Launching Unwatched Analyst (Strict String Mode)...")
     
     try:
-        # PHASE 1: Niche Discovery (Free)
-        res = client.models.generate_content(model=MODEL_ID, contents="YouTube search query for 2026 tech traps.")
-        query_text = res.text.strip().replace('"', '')
+        # PHASE 1: Niche Discovery (Strict Prompting)
+        # We tell Gemini to shut up and just give the string.
+        prompt = (
+            "Identify one 2026 tech niche with high knowledge debt. "
+            "Respond with ONLY a 3-5 word YouTube search query. "
+            "Do not include bullets, bolding, or explanations."
+        )
+        res = client.models.generate_content(model=MODEL_ID, contents=prompt)
+        
+        # Clean the output to ensure it's just a raw string
+        query_text = res.text.strip().split('\n')[0].replace('*', '').replace('"', '')
         print(f"🔍 Brainstormed: {query_text}")
 
-        # PHASE 2: Discovery (JSON Payload)
+        # PHASE 2: Discovery
+        # Endpoint: /youtube/search | Parameter: query
         search_res = get_supadata("youtube/search", {"query": query_text})
         
         if not search_res or not search_res.get("videos"):
-            print("🔄 Retrying with broad query...")
-            search_res = get_supadata("youtube/search", {"query": "Software Engineering Traps 2026"})
+            print("🔄 Falling back to generic search...")
+            search_res = get_supadata("youtube/search", {"query": "2026 software engineering traps"})
 
         videos = search_res.get("videos", []) if search_res else []
         if not videos:
-            print("❌ Still failing. Check if Supadata endpoint changed to /search/youtube")
+            print("❌ Absolute failure. Usage is likely still at 6.")
             return
 
         # PHASE 3: Select & Analyze
@@ -57,18 +60,20 @@ def scout_market():
         video_url = f"https://www.youtube.com/watch?v={top_video['id']}"
         print(f"📊 Analyzing: {top_video['title']}")
 
-        # PHASE 4: Transcript (Most transcript APIs still use GET/URL)
-        # If this fails, we'll switch this to POST too.
-        transcript_url = f"https://api.supadata.ai/v1/youtube/transcript"
-        transcript_res = requests.get(transcript_url, headers={"x-api-key": SUPA_KEY}, params={"url": video_url, "text": "true"})
-        transcript_text = transcript_res.json().get("content", "") if transcript_res.status_code == 200 else ""
+        # PHASE 4: Transcript
+        transcript_res = get_supadata("youtube/transcript", {"url": video_url, "text": "true"})
+        transcript_text = transcript_res.get("content", "") if transcript_res else "No transcript found."
 
-        # PHASE 5: Save
-        report = client.models.generate_content(model=MODEL_ID, contents=f"Trap/Fix for: {top_video['title']}\n{transcript_text[:5000]}").text
+        # PHASE 5: Synthesis & Save
+        analysis = client.models.generate_content(
+            model=MODEL_ID, 
+            contents=f"Identify Trap/Fix for: {top_video['title']}\n{str(transcript_text)[:5000]}"
+        ).text
+
         with open("market_research.md", "a") as f:
-            f.write(f"\n\n---\n### 📈 {datetime.now().strftime('%Y-%m-%d')} | {top_video['title']}\n{report}")
+            f.write(f"\n\n---\n### 📈 {datetime.now().strftime('%Y-%m-%d')} | {top_video['title']}\n{analysis}")
         
-        print("✅ Success! Check market_research.md")
+        print("✅ Success! Usage should hit 7 or 8 now.")
 
     except Exception as e:
         print(f"❌ Script Error: {e}")
