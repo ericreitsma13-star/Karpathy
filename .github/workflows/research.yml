@@ -1,20 +1,29 @@
 name: Unwatched AI Research
-on: 
-  workflow_dispatch: 
+
+on:
   schedule:
-    - cron: '0 2 * * *' 
+    - cron: '0 2 * * *' # Auto-run once a day at 2 AM UTC
+  workflow_dispatch: # Allows you to manually click "Run workflow" for testing
   push:
     branches: [ main ]
+    # CRITICAL: Do not run the AI loop if only these files changed
+    paths-ignore:
+      - 'researcher.py'
+      - 'README.md'
+      - '.gitignore'
+      - '.github/workflows/**'
 
 jobs:
   run-scout:
     runs-on: ubuntu-latest
     
+    # Gives the Action permission to save the research back to your repo
     permissions:
       contents: write 
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -22,22 +31,22 @@ jobs:
           python-version: '3.11'
           
       - name: Install dependencies
-        run: pip install google-genai requests
+        run: pip install google-genai requests 
         
-      - name: Run Researcher
+      - name: Run Researcher Script
         env:
-          # Mapping your new 2026 secrets
+          # Pulls your secure keys from Settings > Secrets > Actions
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPADATA_API_KEY: ${{ secrets.SUPADATA_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python researcher.py
         
-      - name: Commit and Push Research
+      - name: Commit and Push Results
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Unwatched Analyst"
-          # Ensure market_research.md exists before adding
+          # Ensure the file exists so the 'git add' doesn't fail
           touch market_research.md 
           git add market_research.md
-          git commit -m "📈 Updated Market Intelligence: $(date)" || echo "No changes to commit"
+          # Only commit if there are actually new findings
+          git commit -m "📊 Intelligence Map Updated: $(date +'%Y-%m-%d')" || echo "No changes to commit"
           git push
