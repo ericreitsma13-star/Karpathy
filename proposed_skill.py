@@ -1,279 +1,266 @@
-import requests
-import json
-import time
-import re
+from datetime import datetime, timedelta
+import inspect # Used for internal validation, not a user-facing dependency
 
-# --- Mock Services for demonstration/testing without external APIs ---
-class MockWhisperServer:
-    """Simulates a self-hosted Whisper API endpoint for transcription."""
-    def transcribe(self, audio_data: bytes) -> str:
-        # Simplified simulation: ignores actual audio_data, always returns same WebVTT
-        # In a real scenario, this would involve an actual transcription model.
-        _ = audio_data # audio_data is not used in this mock
-        return """WEBVTT
+class _MockOperator:
+    """
+    A conceptual representation of an Airflow operator for demonstrating
+    DAG and task definition principles without the 'airflow' library dependency.
+    """
+    def __init__(self, task_id: str, dag: "_MockDAG" = None):
+        if not isinstance(task_id, str) or not task_id:
+            raise ValueError("task_id must be a non-empty string.")
+        self.task_id = task_id
+        self.dag = dag
+        if dag:
+            dag.add_task(self)
+        self.upstream_task_ids = set()
+        self.downstream_task_ids = set()
 
-00:00:01.000 --> 00:00:05.000
-Hey everybody, it's Denis Coady from Redpanda.
-
-00:00:05.500 --> 00:00:10.000
-I want to show you how to leverage Gen AI for unstructured data.
-
-00:00:10.500 --> 00:00:15.000
-We often have customer conversations about pain points and feature requests.
-"""
-
-class MockBedrockLLM:
-    """Simulates an AWS Bedrock LLM invocation for structuring data."""
-    def invoke_model(self, prompt: str, model_id: str, max_tokens: int = 4096) -> dict:
-        _ = (model_id, max_tokens) # Not used in mock, but matches signature
-        # Simulate different responses based on prompt keywords, focusing on the desired JSON structure.
-        if "feature requests" in prompt and "pain points" in prompt:
-            structured_response = {
-                "feature_requests": ["real-time streaming platform", "Kafka compatibility"],
-                "pain_points": ["difficulty managing large data volumes", "cost of transcription"],
-                "use_cases": ["analytical insights from customer calls"]
-            }
-        elif "marketing wants to see trends" in prompt:
-            structured_response = {
-                "marketing_trends": ["real-time analytics", "customer engagement"],
-                "popular_features": ["streaming platform"]
-            }
+    def __rshift__(self, other):
+        """
+        Simulates the Airflow dependency operator `>>`.
+        Connects this task to one or more downstream tasks.
+        """
+        if isinstance(other, list):
+            for o in other:
+                self._add_dependency(self, o)
         else:
-            structured_response = {"extracted_data": "generic response from LLM based on prompt"}
-            
-        # Bedrock response format for Anthropic Claude typically contains 'completion' field.
-        return {"completion": json.dumps(structured_response)}
+            self._add_dependency(self, other)
+        return other
 
-# --- Main Implementation ---
-class LLMPoweredDataStructurer:
+    def __lshift__(self, other):
+        """
+        Simulates the Airflow dependency operator `<<`.
+        Connects one or more upstream tasks to this task.
+        """
+        if isinstance(other, list):
+            for o in other:
+                self._add_dependency(o, self)
+        else:
+            self._add_dependency(other, self)
+        return other
+
+    def _add_dependency(self, upstream: "_MockOperator", downstream: "_MockOperator"):
+        """Internal method to register dependencies."""
+        if upstream.dag != downstream.dag:
+            raise ValueError("Tasks must belong to the same DAG to establish dependencies.")
+        upstream.downstream_task_ids.add(downstream.task_id)
+        downstream.upstream_task_ids.add(upstream.task_id)
+
+    def __repr__(self):
+        return f"MockOperator(task_id='{self.task_id}')"
+
+
+class MockDummyOperator(_MockOperator):
+    """A conceptual DummyOperator that does nothing, for illustrating DAG structure."""
+    def __init__(self, task_id: str, dag: "_MockDAG" = None):
+        super().__init__(task_id=task_id, dag=dag)
+
+class MockPythonOperator(_MockOperator):
+    """A conceptual PythonOperator for illustrating Python function execution within a DAG."""
+    def __init__(self, task_id: str, python_callable, dag: "_MockDAG" = None):
+        super().__init__(task_id=task_id, dag=dag)
+        if not callable(python_callable):
+            raise TypeError("python_callable must be a callable function.")
+        self.python_callable = python_callable
+
+    def execute(self):
+        """Simulates the execution of the Python callable."""
+        print(f"Executing Python task: {self.task_id}")
+        # In a real Airflow PythonOperator, `op_args` or `op_kwargs` would pass data.
+        # This simulation focuses on structure, not data passing between tasks.
+        self.python_callable()
+
+class MockBashOperator(_MockOperator):
+    """A conceptual BashOperator for illustrating shell command execution within a DAG."""
+    def __init__(self, task_id: str, bash_command: str, dag: "_MockDAG" = None):
+        super().__init__(task_id=task_id, dag=dag)
+        if not isinstance(bash_command, str) or not bash_command:
+            raise TypeError("bash_command must be a non-empty string.")
+        self.bash_command = bash_command
+
+    def execute(self):
+        """Simulates the execution of the Bash command."""
+        print(f"Executing Bash task: {self.task_id} with command: '{self.bash_command}'")
+        # In a real scenario, this would use subprocess.run, but we avoid non-stdlib for simplicity.
+
+
+class _MockDAGContext:
     """
-    Builds a reusable Python skill for transcribing audio and structuring
-    the resulting text using an LLM (e.g., AWS Bedrock) via a meta-prompting approach.
+    A context manager to simulate `with DAG(...) as dag:` syntax,
+    making the current DAG instance available for implicit task association.
     """
-    def __init__(self, whisper_api_url: str = None, bedrock_api_endpoint: str = None, aws_auth_headers: dict = None):
-        """
-        Initializes the data structurer.
-        
-        Args:
-            whisper_api_url (str, optional): URL for a self-hosted Whisper API (e.g., "http://localhost:8000/transcribe"). 
-                                             If None, a mock Whisper service is used for testing.
-            bedrock_api_endpoint (str, optional): Base URL for AWS Bedrock's InvokeModel API 
-                                                  (e.g., "https://bedrock-runtime.us-east-1.amazonaws.com").
-                                                  If None, a mock Bedrock service is used for testing.
-            aws_auth_headers (dict, optional): Dictionary of AWS SigV4 authentication headers.
-                                               Required for actual Bedrock API calls via requests. 
-                                               Example: {'X-Amz-Date': '...', 'Authorization': '...'}.
-                                               NOTE: Generating these headers manually for `requests` is complex 
-                                               and usually handled by `boto3`. This implementation assumes 
-                                               they are pre-generated or used in a controlled environment.
-        """
-        self.whisper_api_url = whisper_api_url
-        self.bedrock_api_endpoint = bedrock_api_endpoint
-        self.aws_auth_headers = aws_auth_headers if aws_auth_headers is not None else {}
-        
-        # Use mock services if API URLs are not provided (for testing/demo)
-        self._whisper_service = MockWhisperServer() if not whisper_api_url else None
-        self._bedrock_service = MockBedrockLLM() if not bedrock_api_endpoint else None
+    _current_dag = None
 
-    def _call_whisper_api(self, audio_data: bytes, content_type: str = "audio/wav") -> str:
-        """
-        Calls the Whisper transcription API (self-hosted or mock).
-        
-        Args:
-            audio_data (bytes): The raw audio file content.
-            content_type (str): The Content-Type header for the audio data.
-            
-        Returns:
-            str: The transcribed text in WebVTT format.
-        
-        Raises:
-            ValueError: If Whisper API URL not provided and mock service is disabled.
-            requests.exceptions.RequestException: If the API call fails.
-        """
-        if self._whisper_service:
-            return self._whisper_service.transcribe(audio_data)
-        
-        if not self.whisper_api_url:
-            raise ValueError("Whisper API URL not provided, and mock service is disabled.")
+    def __init__(self, dag_instance):
+        self.dag_instance = dag_instance
 
-        headers = {"Content-Type": content_type}
-        # A self-hosted Whisper API might expect multipart/form-data or raw audio bytes.
-        # This assumes raw bytes for simplicity, adjust for specific server implementation.
-        response = requests.post(self.whisper_api_url, data=audio_data, headers=headers, timeout=300)
-        response.raise_for_status() # Raise an exception for HTTP errors
-        return response.text
+    def __enter__(self):
+        _MockDAGContext._current_dag = self.dag_instance
+        return self.dag_instance
 
-    def _call_bedrock_api(self, prompt_text: str, model_id: str = "anthropic.claude-v2", max_tokens: int = 4096) -> dict:
-        """
-        Invokes an LLM model on AWS Bedrock (or mock).
-        
-        NOTE: This direct `requests` implementation for AWS Bedrock requires manual AWS SigV4
-        request signing for authentication, which is complex and usually handled by `boto3`.
-        This implementation assumes pre-generated `aws_auth_headers` or a test environment.
-        For production, `boto3` is highly recommended for proper authentication and error handling.
-        
-        Args:
-            prompt_text (str): The prompt to send to the LLM.
-            model_id (str): The identifier of the Bedrock model to use (e.g., "anthropic.claude-v2").
-            max_tokens (int): The maximum number of tokens to generate in the response.
-            
-        Returns:
-            dict: The JSON response from the Bedrock API, containing the 'completion'.
-            
-        Raises:
-            ValueError: If Bedrock API endpoint not provided and mock service is disabled.
-            requests.exceptions.RequestException: If the API call fails.
-        """
-        if self._bedrock_service:
-            return self._bedrock_service.invoke_model(prompt_text, model_id, max_tokens)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        _MockDAGContext._current_dag = None
 
-        if not self.bedrock_api_endpoint:
-            raise ValueError("Bedrock API endpoint not provided, and mock service is disabled.")
-
-        # Bedrock API requires specific payload format for different models.
-        # This example payload is tailored for Anthropic Claude models.
-        payload = {
-            "prompt": f"\n\nHuman: {prompt_text}\n\nAssistant:",
-            "max_tokens_to_sample": max_tokens,
-            "temperature": 0.1, # Keep temperature low for structured/deterministic output
-            "top_k": 250,
-            "top_p": 1,
-            "stop_sequences": ["\n\nHuman:"] # Crucial to prevent the model from continuing the conversation
-        }
-        
-        headers = {
-            "Content-Type": "application/json",
-            **self.aws_auth_headers # Include pre-generated AWS SigV4 headers here
-        }
-        
-        # Example Bedrock invocation URL structure: 
-        # https://bedrock-runtime.<region>.amazonaws.com/model/<model_id>/invoke
-        invoke_url = f"{self.bedrock_api_endpoint}/model/{model_id}/invoke"
-        
-        # Important: Be respectful of rate limits as advised in the transcript.
-        # A simple sleep is used here; in production, consider a proper retry/backoff mechanism.
-        time.sleep(1) 
-
-        response = requests.post(invoke_url, headers=headers, json=payload, timeout=60)
-        response.raise_for_status() # Raise an exception for HTTP errors
-        
-        response_data = response.json()
-        # For Claude, the completion is typically in the 'completion' field. 
-        # Other models might have different response structures.
-        return {"completion": response_data.get("completion", "")}
-
-    @staticmethod
-    def parse_webvtt_transcript(webvtt_content: str) -> str:
-        """
-        Strips timestamps and metadata from WebVTT content to extract plain text.
-        This makes the transcript cleaner and more suitable for LLM input.
-        
-        Args:
-            webvtt_content (str): The raw WebVTT string.
-            
-        Returns:
-            str: The cleaned plain text transcript.
-        """
-        lines = webvtt_content.splitlines()
-        clean_text_parts = []
-        in_segment = False
-        for line in lines:
-            line = line.strip()
-            if not line:
-                in_segment = False
-                continue
-            # Regex to match WebVTT timestamp format (e.g., 00:00:01.000 --> 00:00:05.000)
-            if re.match(r'^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}', line):
-                in_segment = True
-                continue
-            # Skip segment numbers and the initial WEBVTT declaration
-            if in_segment and not re.match(r'^\d+$', line) and not line.upper() == "WEBVTT":
-                clean_text_parts.append(line)
-        return " ".join(clean_text_parts).strip()
-
-    def generate_llm_prompt_from_template(self, cleaned_transcript: str, target_objective: str, output_json_example: dict) -> str:
-        """
-        Generates a robust LLM prompt for structuring data, mimicking the meta-prompting strategy.
-        This function constructs the prompt based on the desired output format and objective,
-        embodying the idea of having an 'AI write the prompt for you'.
-        
-        Args:
-            cleaned_transcript (str): The plain text transcript to be analyzed.
-            target_objective (str): A description of what insights need to be extracted 
-                                    (e.g., "identify feature requests, pain points, and use cases").
-            output_json_example (dict): A dictionary representing the desired JSON schema and 
-                                        example output for few-shot learning.
-            
-        Returns:
-            str: The fully constructed prompt for the LLM.
-        """
-        # FIX: Changed json.dumps to not use indent=2 to match the compact JSON expected by unit tests.
-        json_example_str = json.dumps(output_json_example)
-
-        prompt_template = f"""
-You are an expert analytical assistant specialized in extracting specific insights from customer conversation transcripts.
-Your task is to analyze the provided transcript and extract information relevant to the following objective: "{target_objective}".
-The output MUST be in strict JSON format, adhering to the structure provided in the example below.
-Do not include any other text or explanation outside of the JSON object.
-
-Transcript:
----
-{cleaned_transcript}
----
-
-Example of desired JSON output format (few-shot example):
-
-{json_example_str}
-
-
-Please provide the extracted information in the specified JSON format.
-"""
-        return prompt_template.strip()
-
-    def process_audio_for_analytics(
+class _MockDAG:
+    """
+    A conceptual representation of an Apache Airflow DAG (Directed Acyclic Graph).
+    This class demonstrates how a workflow is defined as a collection of tasks
+    and their dependencies, without requiring the 'airflow' library.
+    """
+    def __init__(
         self,
-        audio_data: bytes,
-        target_objective: str,
-        output_json_example: dict,
-        whisper_content_type: str = "audio/wav",
-        bedrock_model_id: str = "anthropic.claude-v2",
-        max_llm_tokens: int = 4096
-    ) -> dict:
-        """
-        Orchestrates the end-to-end pipeline: transcribes audio, structures the text
-        using an LLM (via a generated prompt), and returns structured data for analytics.
-        
-        Args:
-            audio_data (bytes): The raw audio file content (e.g., WAV).
-            target_objective (str): The analytical goal for structuring the data 
-                                    (e.g., "extract product feedback").
-            output_json_example (dict): A few-shot example of the desired JSON output schema.
-            whisper_content_type (str): Content-Type for the audio data sent to Whisper.
-            bedrock_model_id (str): The LLM model ID to use on Bedrock (e.g., "anthropic.claude-v2").
-            max_llm_tokens (int): Maximum tokens for the LLM's generated response.
-            
-        Returns:
-            dict: The structured data extracted by the LLM, or an error dictionary if JSON parsing fails.
-        """
-        # 1. Transcribe audio using Whisper
-        webvtt_transcript = self._call_whisper_api(audio_data, whisper_content_type)
-        cleaned_transcript = self.parse_webvtt_transcript(webvtt_transcript)
+        dag_id: str,
+        start_date: datetime,
+        schedule_interval: timedelta = None,
+        catchup: bool = False,
+        tags: list[str] = None
+    ):
+        if not isinstance(dag_id, str) or not dag_id:
+            raise ValueError("dag_id must be a non-empty string.")
+        if not isinstance(start_date, datetime):
+            raise TypeError("start_date must be a datetime object.")
 
-        # 2. Generate LLM prompt using a meta-prompting strategy and few-shot examples
-        llm_prompt = self.generate_llm_prompt_from_template(cleaned_transcript, target_objective, output_json_example)
+        self.dag_id = dag_id
+        self.start_date = start_date
+        self.schedule_interval = schedule_interval
+        self.catchup = catchup
+        self.tags = tags if tags is not None else []
+        self.tasks: dict[str, _MockOperator] = {}
 
-        # 3. Structure data using the LLM (AWS Bedrock or mock)
-        llm_response = self._call_bedrock_api(llm_prompt, bedrock_model_id, max_tokens=max_llm_tokens)
-        
-        try:
-            # The LLM is instructed to output strict JSON, so we attempt to parse it.
-            structured_data = json.loads(llm_response.get("completion", "{}"))
-        except json.JSONDecodeError:
-            # If the LLM output is not valid JSON, return an error for debugging.
-            structured_data = {
-                "error": "LLM response was not valid JSON",
-                "raw_output": llm_response.get('completion'),
-                "prompt_sent": llm_prompt 
-            }
-            
-        return structured_data
+    def add_task(self, task: _MockOperator):
+        if not isinstance(task, _MockOperator):
+            raise TypeError("Only _MockOperator instances can be added to a DAG.")
+        if task.task_id in self.tasks:
+            raise ValueError(f"Task with ID '{task.task_id}' already exists in DAG '{self.dag_id}'.")
+        self.tasks[task.task_id] = task
+
+    def get_task(self, task_id: str) -> _MockOperator:
+        return self.tasks.get(task_id)
+
+    @property
+    def task_ids(self) -> list[str]:
+        return list(self.tasks.keys())
+
+    def __enter__(self):
+        return _MockDAGContext(self).__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        _MockDAGContext(self).__exit__(exc_type, exc_val, exc_tb)
+
+    def __repr__(self):
+        return f"MockDAG(dag_id='{self.dag_id}', tasks={len(self.tasks)})"
+
+# Aliases for external use, mimicking Airflow's public API structure
+DAG = _MockDAG
+DummyOperator = MockDummyOperator
+PythonOperator = MockPythonOperator
+BashOperator = MockBashOperator
+
+# --- Example Usage / Data Pipeline Definition Functions ---
+
+def extract_data_from_api():
+    """Simulates extracting data from an external API."""
+    print("STAGE: Extracting data...")
+    # In a real scenario, this would use 'requests' or a database client
+    return {"data": "some_raw_data"}
+
+def transform_and_clean_data():
+    """Simulates transforming and cleaning raw data.
+    Simplified to not take arguments for structural demo purposes.
+    """
+    print(f"STAGE: Transforming and aggregating data...")
+    # Apply various transformations
+    return {"processed_data": "DUMMY_PROCESSED_DATA"}
+
+def load_data_to_storage():
+    """Simulates loading processed data to a target storage."""
+    print(f"STAGE: Loading data to target location...")
+    # In a real scenario, this would write to Delta Lake, S3, etc.
+    return True
+
+def define_etl_workflow_dag() -> DAG:
+    """
+    Defines a conceptual ETL (Extract, Transform, Load) workflow
+    using Airflow-inspired DAG and operator syntax.
+
+    This function demonstrates how to:
+    1. Define a DAG with a unique ID, start date, and schedule.
+    2. Create different types of tasks (dummy, python, bash).
+    3. Establish task dependencies to ensure sequential or parallel execution.
+
+    Note: This implementation uses conceptual classes (DAG, DummyOperator etc.)
+    to adhere to the constraint of not using the actual 'airflow' library.
+    It serves to illustrate the structure and principles of Airflow DAGs.
+    """
+    with DAG(
+        dag_id="etl_data_processing_workflow_conceptual",
+        start_date=datetime(2023, 1, 1, 0, 0, 0),
+        schedule_interval=timedelta(days=1),  # Run daily
+        catchup=False,  # Do not run for past missed schedules
+        tags=["data_engineering", "etl", "conceptual"]
+    ) as dag:
+        # Task 1: Start the pipeline (Dummy Task)
+        start_task = DummyOperator(task_id="start_pipeline", dag=dag)
+
+        # Task 2: Extract data from an API (Python Task)
+        extract_task = PythonOperator(
+            task_id="extract_from_source_api",
+            python_callable=extract_data_from_api,
+            dag=dag
+        )
+
+        # Task 3: Transform and aggregate data (Python Task)
+        transform_task = PythonOperator(
+            task_id="transform_and_aggregate_data",
+            python_callable=transform_and_clean_data,
+            dag=dag
+        )
+
+        # Task 4: Load data to target (Python Task)
+        load_task = PythonOperator(
+            task_id="load_to_delta_lake",
+            python_callable=load_data_to_storage,
+            dag=dag
+        )
+
+        # Task 5: Run a shell command (Bash Task)
+        # Example: check if a file exists or run a simple cleanup
+        check_disk_space_task = BashOperator(
+            task_id="check_disk_space",
+            bash_command="echo 'Checking disk space...'", # or 'df -h'
+            dag=dag
+        )
+
+        # Task 6: End the pipeline (Dummy Task)
+        end_task = DummyOperator(task_id="end_pipeline", dag=dag)
+
+        # Define the task dependencies as described in Airflow
+        # Example from transcript: "task1 >> [task2, task3] >> task4"
+        start_task >> extract_task
+        extract_task >> transform_task
+        transform_task >> [load_task, check_disk_space_task] # Parallel execution
+        [load_task, check_disk_space_task] >> end_task # Both must complete before end_task
+
+    return dag
+
+# If run as a script, demonstrate DAG creation and conceptual execution
+if __name__ == "__main__":
+    print("Defining a conceptual Airflow DAG...")
+    my_dag = define_etl_workflow_dag()
+    print(f"\nConceptual DAG '{my_dag.dag_id}' created with {len(my_dag.tasks)} tasks.")
+    print("Tasks in DAG:", my_dag.task_ids)
+
+    print("\nTask Dependencies (Upstream -> Downstream):")
+    for task_id, task in my_dag.tasks.items():
+        print(f"  {task_id}:")
+        print(f"    Upstream: {list(task.upstream_task_ids)}")
+        print(f"    Downstream: {list(task.downstream_task_ids)}")
+
+    print("\nConceptual execution simulation:")
+    extract_data_from_api()
+    transform_and_clean_data()
+    load_data_to_storage()
+    # For BashOperator, actual execution would be via subprocess, here just print
+    # For actual Airflow, tasks would run in order determined by scheduler.
+    print("STAGE: Pipeline completed successfully (conceptually)!")
