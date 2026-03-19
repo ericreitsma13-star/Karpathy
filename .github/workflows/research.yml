@@ -1,16 +1,15 @@
-name: AI Research
+name: Unwatched AI Research
 on: 
-  workflow_dispatch: # Manual 'Run' button
+  workflow_dispatch: 
   schedule:
-    - cron: '0 2 * * *' # Auto-run at 2 AM daily
+    - cron: '0 2 * * *' 
   push:
-    branches: [ main ] # Auto-run when you save code
+    branches: [ main ]
 
 jobs:
   run-scout:
     runs-on: ubuntu-latest
     
-    # 1. CRITICAL: Give the AI permission to write to your repo
     permissions:
       contents: write 
     
@@ -23,19 +22,23 @@ jobs:
           python-version: '3.11'
           
       - name: Install dependencies
-        run: pip install openai duckduckgo-search
+        # Added google-generativeai and requests for Supadata
+        run: pip install google-generativeai requests 
         
       - name: Run Researcher
         env:
-          # This maps your misspelled secret to the variable the script expects
-          GITHUB_TOKEN: ${{ secrets.RESEARCH_TOKEM }} 
+          # Mapping your new 2026 secrets
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPADATA_API_KEY: ${{ secrets.SUPADATA_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python researcher.py
         
-      # 2. CRITICAL: Save the results back to your GitHub folder
       - name: Commit and Push Research
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Unwatched Analyst"
+          # Ensure market_research.md exists before adding
+          touch market_research.md 
           git add market_research.md
-          git commit -m "Updated Market Intelligence Map" || echo "No changes"
+          git commit -m "📈 Updated Market Intelligence: $(date)" || echo "No changes to commit"
           git push
