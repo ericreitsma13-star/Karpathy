@@ -31,10 +31,10 @@ jobs:
         run: python researcher.py
         
       # 2. CRITICAL: Save the results back to your GitHub folder
-      - name: Commit and Push Leads
+      - name: Commit and Push Research
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "Unwatched Bot"
-          git add leads.csv
-          git commit -m "New Unwatched leads found by GPT-5" || echo "No new leads today"
+          git config --local user.name "Unwatched Analyst"
+          git add market_research.md
+          git commit -m "Updated Market Intelligence Map" || echo "No changes"
           git push
