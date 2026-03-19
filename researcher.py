@@ -8,7 +8,9 @@ from datetime import datetime
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 SUPA_KEY = os.environ.get("SUPADATA_API_KEY")
-MODEL_ID = 'gemini-2.5-flash-lite'
+
+SYNTHESIS_MODEL = 'gemini-2.5-flash'      # stronger — used for code gen + repair
+MODEL_ID = 'gemini-2.5-flash-lite'        # lighter — reserved for future simple tasks
 
 HEADERS = {"x-api-key": SUPA_KEY}
 MAX_REPAIR_ITERATIONS = 3
@@ -76,26 +78,31 @@ def scout_and_synthesize():
 
         print(f"📊 High-Signal: {video['title']}")
 
+        # FORWARD PASS
         prompt = (
             f"Extract the exact technical implementation from this transcript:\n{transcript[:8000]}\n\n"
             "Ignore all marketing/intro. Focus on code logic.\n"
             "Output ONLY a raw JSON object (no markdown fences) with:\n"
             "1. 'skill_name': string\n"
-            "2. 'implementation_code': complete Python module as a string\n"
-            "3. 'unit_test': pytest test code as a string (no imports for proposed_skill, those are added automatically)"
+            "2. 'implementation_code': complete, self-contained Python module as a string. "
+            "Only use stdlib or these packages: requests, pytest. No other dependencies.\n"
+            "3. 'unit_test': pytest test code as a string. "
+            "Do not import from proposed_skill — that is added automatically."
         )
 
-        prediction = client.models.generate_content(model=MODEL_ID, contents=prompt)
+        prediction = client.models.generate_content(model=SYNTHESIS_MODEL, contents=prompt)
 
         try:
             skill_data = extract_skill_json(prediction.text)
         except json.JSONDecodeError as e:
             print(f"❌ JSON parse failed: {e}")
+            print(f"--- RAW RESPONSE ---\n{prediction.text[:500]}\n---")
             continue
 
         write_skill_files(skill_data)
         print(f"⚙️  Skill '{skill_data['skill_name']}' staged. Running loss function...")
 
+        # KARPATHY LOOP — backward pass until tests pass or max iterations
         for iteration in range(1, MAX_REPAIR_ITERATIONS + 1):
             passed, test_output = run_tests()
 
@@ -105,6 +112,7 @@ def scout_and_synthesize():
                 return
 
             print(f"🔁 Iteration {iteration} failed. Feeding error back (backward pass)...")
+            print(f"--- TEST OUTPUT ---\n{test_output[:500]}\n---")
 
             repair_prompt = (
                 f"This Python skill failed its tests.\n\n"
@@ -112,17 +120,19 @@ def scout_and_synthesize():
                 f"=== unit_test ===\n{skill_data['unit_test']}\n\n"
                 f"=== test output (loss) ===\n{test_output}\n\n"
                 "Fix the implementation_code so all tests pass.\n"
+                "Only use stdlib or these packages: requests, pytest. No other dependencies.\n"
                 "Output ONLY a raw JSON object with the same three keys: "
                 "'skill_name', 'implementation_code', 'unit_test'."
             )
 
-            repair = client.models.generate_content(model=MODEL_ID, contents=repair_prompt)
+            repair = client.models.generate_content(model=SYNTHESIS_MODEL, contents=repair_prompt)
 
             try:
                 skill_data = extract_skill_json(repair.text)
                 write_skill_files(skill_data)
             except json.JSONDecodeError as e:
                 print(f"❌ Repair JSON parse failed: {e}")
+                print(f"--- RAW RESPONSE ---\n{repair.text[:500]}\n---")
                 break
 
         print(f"⚠️  Max iterations reached. Skill unstable — skipping.")
