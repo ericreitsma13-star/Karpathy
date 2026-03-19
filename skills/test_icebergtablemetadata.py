@@ -1,5 +1,5 @@
 import sys
-from proposed_skill import *
+from skills.icebergtablemetadata import *
 
 import pytest
 import time

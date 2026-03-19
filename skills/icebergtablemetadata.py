@@ -1,3 +1,10 @@
+"""
+Skill: IcebergTableMetadata
+Source: https://youtube.com/watch?v=TsmhRZElPvM
+Title: Apache Iceberg: What It Is and Why Everyone’s Talking About It.
+Added: 2026-03-19
+"""
+
 import json
 import uuid
 import time
