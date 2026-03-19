@@ -1,15 +1,44 @@
+# LLMPoweredDataStructurer
+
+**Source:** [AWS re:Invent 2024 - Structured analysis from unstructured data pipelines (AIM277)](https://youtube.com/watch?v=ul1hsxTzcqY)
+**Added:** 2026-03-19
+
+Here's the `README.md` documentation for the `LLMPoweredDataStructurer` skill:
+
+---
+
+# LLMPoweredDataStructurer
+
+## What this is
+This is a Python skill designed for data engineers to transform unstructured audio data into structured, actionable insights using a two-stage pipeline: **audio transcription** followed by **Large Language Model (LLM) based data structuring**. It leverages a "meta-prompting" approach, where the system dynamically generates optimized LLM prompts based on a specified objective and desired output schema.
+
+## The problem it solves
+Data engineers often face the challenge of extracting valuable, quantifiable information from vast amounts of unstructured data sources like customer call recordings, meeting transcripts, or spoken feedback. Manually sifting through these or building rigid rule-based systems for extraction is time-consuming, error-prone, and not scalable.
+
+This skill automates the process of:
+1.  Transcribing audio into text.
+2.  Intelligently extracting specific entities, themes, or sentiments (e.g., pain points, feature requests, marketing trends, use cases) into a well-defined JSON format, making the data easily queryable and analyzable in downstream systems.
+
+It bridges the gap between raw, unstructured audio and structured data suitable for analytics, reporting, and machine learning applications.
+
+## How to use it
+The `LLMPoweredDataStructurer` class orchestrates the transcription and LLM-based structuring process. For demonstration and testing, it can use mock services internally if actual API endpoints are not provided.
+
+### Installation
+No external libraries are strictly required beyond `requests` and standard Python modules, but for a real-world scenario with AWS Bedrock, you'd typically use `boto3`.
+
+### Short Code Example
+
+```python
 import requests
 import json
 import time
 import re
 
-# --- Mock Services for demonstration/testing without external APIs ---
+# --- Mock Services (Included in the original code, for self-contained example) ---
 class MockWhisperServer:
-    """Simulates a self-hosted Whisper API endpoint for transcription."""
     def transcribe(self, audio_data: bytes) -> str:
-        # Simplified simulation: ignores actual audio_data, always returns same WebVTT
-        # In a real scenario, this would involve an actual transcription model.
-        _ = audio_data # audio_data is not used in this mock
+        _ = audio_data 
         return """WEBVTT
 
 00:00:01.000 --> 00:00:05.000
@@ -23,28 +52,20 @@ We often have customer conversations about pain points and feature requests.
 """
 
 class MockBedrockLLM:
-    """Simulates an AWS Bedrock LLM invocation for structuring data."""
     def invoke_model(self, prompt: str, model_id: str, max_tokens: int = 4096) -> dict:
-        _ = (model_id, max_tokens) # Not used in mock, but matches signature
-        # Simulate different responses based on prompt keywords, focusing on the desired JSON structure.
+        _ = (model_id, max_tokens)
         if "feature requests" in prompt and "pain points" in prompt:
             structured_response = {
                 "feature_requests": ["real-time streaming platform", "Kafka compatibility"],
                 "pain_points": ["difficulty managing large data volumes", "cost of transcription"],
                 "use_cases": ["analytical insights from customer calls"]
             }
-        elif "marketing wants to see trends" in prompt:
-            structured_response = {
-                "marketing_trends": ["real-time analytics", "customer engagement"],
-                "popular_features": ["streaming platform"]
-            }
         else:
             structured_response = {"extracted_data": "generic response from LLM based on prompt"}
-            
-        # Bedrock response format for Anthropic Claude typically contains 'completion' field.
         return {"completion": json.dumps(structured_response)}
 
-# --- Main Implementation ---
+# --- Main Implementation (LLMPoweredDataStructurer class as provided) ---
+# (Paste the LLMPoweredDataStructurer class definition here, including all methods)
 class LLMPoweredDataStructurer:
     """
     Builds a reusable Python skill for transcribing audio and structuring
@@ -97,10 +118,8 @@ class LLMPoweredDataStructurer:
             raise ValueError("Whisper API URL not provided, and mock service is disabled.")
 
         headers = {"Content-Type": content_type}
-        # A self-hosted Whisper API might expect multipart/form-data or raw audio bytes.
-        # This assumes raw bytes for simplicity, adjust for specific server implementation.
         response = requests.post(self.whisper_api_url, data=audio_data, headers=headers, timeout=300)
-        response.raise_for_status() # Raise an exception for HTTP errors
+        response.raise_for_status() 
         return response.text
 
     def _call_bedrock_api(self, prompt_text: str, model_id: str = "anthropic.claude-v2", max_tokens: int = 4096) -> dict:
@@ -130,49 +149,34 @@ class LLMPoweredDataStructurer:
         if not self.bedrock_api_endpoint:
             raise ValueError("Bedrock API endpoint not provided, and mock service is disabled.")
 
-        # Bedrock API requires specific payload format for different models.
-        # This example payload is tailored for Anthropic Claude models.
         payload = {
             "prompt": f"\n\nHuman: {prompt_text}\n\nAssistant:",
             "max_tokens_to_sample": max_tokens,
-            "temperature": 0.1, # Keep temperature low for structured/deterministic output
+            "temperature": 0.1, 
             "top_k": 250,
             "top_p": 1,
-            "stop_sequences": ["\n\nHuman:"] # Crucial to prevent the model from continuing the conversation
+            "stop_sequences": ["\n\nHuman:"]
         }
         
         headers = {
             "Content-Type": "application/json",
-            **self.aws_auth_headers # Include pre-generated AWS SigV4 headers here
+            **self.aws_auth_headers
         }
         
-        # Example Bedrock invocation URL structure: 
-        # https://bedrock-runtime.<region>.amazonaws.com/model/<model_id>/invoke
         invoke_url = f"{self.bedrock_api_endpoint}/model/{model_id}/invoke"
         
-        # Important: Be respectful of rate limits as advised in the transcript.
-        # A simple sleep is used here; in production, consider a proper retry/backoff mechanism.
         time.sleep(1) 
 
         response = requests.post(invoke_url, headers=headers, json=payload, timeout=60)
-        response.raise_for_status() # Raise an exception for HTTP errors
+        response.raise_for_status()
         
         response_data = response.json()
-        # For Claude, the completion is typically in the 'completion' field. 
-        # Other models might have different response structures.
         return {"completion": response_data.get("completion", "")}
 
     @staticmethod
     def parse_webvtt_transcript(webvtt_content: str) -> str:
         """
         Strips timestamps and metadata from WebVTT content to extract plain text.
-        This makes the transcript cleaner and more suitable for LLM input.
-        
-        Args:
-            webvtt_content (str): The raw WebVTT string.
-            
-        Returns:
-            str: The cleaned plain text transcript.
         """
         lines = webvtt_content.splitlines()
         clean_text_parts = []
@@ -182,11 +186,9 @@ class LLMPoweredDataStructurer:
             if not line:
                 in_segment = False
                 continue
-            # Regex to match WebVTT timestamp format (e.g., 00:00:01.000 --> 00:00:05.000)
             if re.match(r'^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}', line):
                 in_segment = True
                 continue
-            # Skip segment numbers and the initial WEBVTT declaration
             if in_segment and not re.match(r'^\d+$', line) and not line.upper() == "WEBVTT":
                 clean_text_parts.append(line)
         return " ".join(clean_text_parts).strip()
@@ -194,20 +196,7 @@ class LLMPoweredDataStructurer:
     def generate_llm_prompt_from_template(self, cleaned_transcript: str, target_objective: str, output_json_example: dict) -> str:
         """
         Generates a robust LLM prompt for structuring data, mimicking the meta-prompting strategy.
-        This function constructs the prompt based on the desired output format and objective,
-        embodying the idea of having an 'AI write the prompt for you'.
-        
-        Args:
-            cleaned_transcript (str): The plain text transcript to be analyzed.
-            target_objective (str): A description of what insights need to be extracted 
-                                    (e.g., "identify feature requests, pain points, and use cases").
-            output_json_example (dict): A dictionary representing the desired JSON schema and 
-                                        example output for few-shot learning.
-            
-        Returns:
-            str: The fully constructed prompt for the LLM.
         """
-        # FIX: Changed json.dumps to not use indent=2 to match the compact JSON expected by unit tests.
         json_example_str = json.dumps(output_json_example)
 
         prompt_template = f"""
@@ -242,34 +231,17 @@ Please provide the extracted information in the specified JSON format.
         """
         Orchestrates the end-to-end pipeline: transcribes audio, structures the text
         using an LLM (via a generated prompt), and returns structured data for analytics.
-        
-        Args:
-            audio_data (bytes): The raw audio file content (e.g., WAV).
-            target_objective (str): The analytical goal for structuring the data 
-                                    (e.g., "extract product feedback").
-            output_json_example (dict): A few-shot example of the desired JSON output schema.
-            whisper_content_type (str): Content-Type for the audio data sent to Whisper.
-            bedrock_model_id (str): The LLM model ID to use on Bedrock (e.g., "anthropic.claude-v2").
-            max_llm_tokens (int): Maximum tokens for the LLM's generated response.
-            
-        Returns:
-            dict: The structured data extracted by the LLM, or an error dictionary if JSON parsing fails.
         """
-        # 1. Transcribe audio using Whisper
         webvtt_transcript = self._call_whisper_api(audio_data, whisper_content_type)
         cleaned_transcript = self.parse_webvtt_transcript(webvtt_transcript)
 
-        # 2. Generate LLM prompt using a meta-prompting strategy and few-shot examples
         llm_prompt = self.generate_llm_prompt_from_template(cleaned_transcript, target_objective, output_json_example)
 
-        # 3. Structure data using the LLM (AWS Bedrock or mock)
         llm_response = self._call_bedrock_api(llm_prompt, bedrock_model_id, max_tokens=max_llm_tokens)
         
         try:
-            # The LLM is instructed to output strict JSON, so we attempt to parse it.
             structured_data = json.loads(llm_response.get("completion", "{}"))
         except json.JSONDecodeError:
-            # If the LLM output is not valid JSON, return an error for debugging.
             structured_data = {
                 "error": "LLM response was not valid JSON",
                 "raw_output": llm_response.get('completion'),
@@ -277,3 +249,64 @@ Please provide the extracted information in the specified JSON format.
             }
             
         return structured_data
+
+# --- Example Usage ---
+if __name__ == "__main__":
+    # Initialize the structurer (will use mock services if API URLs are None)
+    # For real use, provide whisper_api_url, bedrock_api_endpoint, and aws_auth_headers
+    structurer = LLMPoweredDataStructurer() 
+
+    # Mock audio data (in a real scenario, this would be actual audio bytes)
+    mock_audio_data = b"This is a byte stream simulating audio content."
+
+    # Define the analytical objective
+    target_objective = "identify feature requests, pain points, and use cases mentioned by customers"
+
+    # Provide a few-shot example of the desired JSON output structure
+    output_schema_example = {
+        "feature_requests": ["example_feature_1", "example_feature_2"],
+        "pain_points": ["example_pain_point_1"],
+        "use_cases": ["example_use_case_1"]
+    }
+
+    print("Processing audio for analytics...")
+    structured_result = structurer.process_audio_for_analytics(
+        audio_data=mock_audio_data,
+        target_objective=target_objective,
+        output_json_example=output_schema_example
+    )
+
+    print("\n--- Structured Data Output ---")
+    print(json.dumps(structured_result, indent=2))
+
+    # Example with a different objective for the mock LLM
+    print("\nProcessing with a different objective...")
+    marketing_objective = "extract key marketing trends and popular features discussed"
+    marketing_schema = {
+        "marketing_trends": ["trend_1"],
+        "popular_features": ["feature_A"]
+    }
+    marketing_result = structurer.process_audio_for_analytics(
+        audio_data=mock_audio_data,
+        target_objective=marketing_objective,
+        output_json_example=marketing_schema
+    )
+    print("\n--- Marketing Structured Data Output ---")
+    print(json.dumps(marketing_result, indent=2))
+```
+
+## What real-world tool this relates to
+This skill directly relates to and integrates with:
+*   **Transcription Services:** AWS Transcribe, Google Cloud Speech-to-Text, Azure Speech, or self-hosted OpenAI Whisper models.
+*   **Large Language Models (LLMs):** Specifically generative LLMs like those available via AWS Bedrock (e.g., Anthropic Claude, Amazon Titan), OpenAI's GPT models, or Google's PaLM/Gemini.
+*   **Data Pipelines & Streaming Platforms:** Systems like Redpanda or Apache Kafka, which can ingest audio streams, pass them to this structurer, and then forward the resulting structured JSON to data lakes (e.g., S3), data warehouses (e.g., Snowflake, Redshift), or analytical databases for real-time insights and dashboarding.
+
+It's a foundational component for building intelligent data processing pipelines that derive structured value from vast quantities of previously inaccessible unstructured data.
+
+## Limitations
+*   **Authentication & Robustness:** The current direct `requests` implementation for AWS Bedrock assumes pre-generated AWS SigV4 headers. For production, the `boto3` library is highly recommended as it handles AWS authentication, retries, and error patterns automatically and more securely.
+*   **LLM Accuracy & Hallucination:** While powerful, LLMs can still produce inaccurate or "hallucinated" information, especially with ambiguous prompts or very long/complex transcripts. Careful prompt engineering, few-shot examples, and potentially post-processing validation are crucial.
+*   **Cost & Latency:** API calls to transcription services and LLMs incur costs per use and introduce latency. For high-volume, real-time scenarios, these factors must be carefully considered and optimized (e.g., batching, asynchronous processing, efficient model selection).
+*   **Transcript Length:** LLMs have context window limits. Very long audio recordings might result in transcripts that exceed these limits, requiring chunking strategies and careful aggregation of results.
+*   **Specific API Implementations:** The `_call_whisper_api` method assumes a certain self-hosted Whisper API interface (raw audio bytes). Real-world Whisper server implementations might expect `multipart/form-data` or other specific formats, which would require adjustments.
+*   **Error Handling:** The current error handling for `json.JSONDecodeError` provides basic debugging information. A production-grade system would require more robust error handling, logging, and retry mechanisms for API calls.

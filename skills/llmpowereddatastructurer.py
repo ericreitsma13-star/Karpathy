@@ -1,3 +1,10 @@
+"""
+Skill: LLMPoweredDataStructurer
+Source: https://youtube.com/watch?v=ul1hsxTzcqY
+Title: AWS re:Invent 2024 - Structured analysis from unstructured data pipelines (AIM277)
+Added: 2026-03-19
+"""
+
 import requests
 import json
 import time
