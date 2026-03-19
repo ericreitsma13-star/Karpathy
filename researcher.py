@@ -19,53 +19,56 @@ def get_supadata(endpoint, params):
         return {}
 
 def scout_market():
-    print("🚀 Starting Unwatched Scout (Emergency Model Bypass)...")
+    print("🚀 Starting Unwatched Scout (2026 Model Check)...")
     
-    # PHASE 1: Generate High-Pain Niche
-    thinking_prompt = "Identify a technical niche in 2026 with outdated YouTube content. Provide ONLY a search query."
+    # --- MODEL VERIFICATION ---
+    # In 2026, model IDs change fast. Let's pick the best available one.
+    target_model = 'gemini-2.5-flash' 
     
-    # SWITCHED: Using 1.5-flash to bypass the 2.0 Quota Lock
     try:
+        # PHASE 1: Generate High-Pain Niche
+        thinking_prompt = "Identify a technical niche in 2026 with outdated YouTube content. Provide ONLY a search query."
+        
         response = client.models.generate_content(
-            model='gemini-1.5-flash', 
+            model=target_model, 
             contents=thinking_prompt
         )
+        query = response.text.strip().replace('"', '')
+        print(f"🔍 Researching Niche: {query}")
+
+        # PHASE 2: Intelligence & Social Proof
+        # (Placeholder URL - in production, this comes from a search result)
+        target_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" 
+        metadata = get_supadata("metadata", {"url": target_url})
+        
+        comment_count = int(metadata.get('commentCount', 0))
+        print(f"📊 Social Check: {comment_count} comments.")
+
+        # PHASE 3: Transcript & Synthesis
+        transcript = get_supadata("transcript", {"url": target_url, "text": "true"})
+        
+        analysis_prompt = (
+            f"Analyze for Unwatched App:\n"
+            f"Title: {metadata.get('title')}\n"
+            f"Transcript: {str(transcript.get('content', ''))[:5000]}\n\n"
+            "Output as Markdown: Trap, Fix, Signal Score."
+        )
+        
+        research_output = client.models.generate_content(
+            model=target_model,
+            contents=analysis_prompt
+        ).text
+        
+        # PHASE 4: Update the Intelligence Map
+        with open("market_research.md", "a") as f:
+            f.write(f"\n\n---\n### 📈 Trend: {datetime.now().strftime('%Y-%m-%d')} | {metadata.get('title')}\n")
+            f.write(research_output)
+        
+        print(f"✅ Market Intelligence Map Updated via {target_model}.")
+
     except Exception as e:
-        print(f"❌ Gemini Error: {e}")
-        return
-
-    query = response.text.strip().replace('"', '')
-    print(f"🔍 Researching Niche: {query}")
-
-    # PHASE 2: Intelligence & Social Proof
-    target_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" 
-    metadata = get_supadata("metadata", {"url": target_url})
-    
-    comment_count = int(metadata.get('commentCount', 0))
-    print(f"📊 Social Check: {comment_count} comments.")
-    
-    # PHASE 3: Transcript & Synthesis
-    transcript = get_supadata("transcript", {"url": target_url, "text": "true"})
-    
-    analysis_prompt = (
-        f"Analyze for Unwatched App:\n"
-        f"Title: {metadata.get('title')}\n"
-        f"Transcript: {str(transcript.get('content', ''))[:5000]}\n\n"
-        "Output as Markdown: Trap, Fix, Signal Score."
-    )
-    
-    # SWITCHED: Using 1.5-flash here too
-    research_output = client.models.generate_content(
-        model='gemini-1.5-flash',
-        contents=analysis_prompt
-    ).text
-    
-    # PHASE 4: Update the Intelligence Map
-    with open("market_research.md", "a") as f:
-        f.write(f"\n\n---\n### 📈 Trend: {datetime.now().strftime('%Y-%m-%d')} | {metadata.get('title')}\n")
-        f.write(research_output)
-    
-    print("✅ Market Intelligence Map Updated via Gemini 1.5 Bypass.")
+        print(f"❌ Error during research: {e}")
+        print("\n💡 TIP: If you see a 404, check your available models in AI Studio.")
 
 if __name__ == "__main__":
     if not SUPA_KEY:
