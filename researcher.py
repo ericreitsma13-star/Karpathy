@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from google import genai
 from datetime import datetime
@@ -8,60 +9,60 @@ client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 SUPA_KEY = os.environ.get("SUPADATA_API_KEY")
 
 def get_supadata(endpoint, params):
-    """Robust Supadata fetcher with error logging"""
     url = f"https://api.supadata.ai/v1/{endpoint}"
     headers = {"x-api-key": SUPA_KEY}
-    
     response = requests.get(url, headers=headers, params=params)
-    
-    # Check if the server actually returned a success code
     if response.status_code != 200:
-        print(f"❌ Supadata API Error {response.status_code}: {response.text}")
         return None
-
     try:
         return response.json()
-    except Exception as e:
-        print(f"❌ JSON Parse Error. Raw Response: {response.text[:200]}")
+    except:
         return None
 
+def safe_generate(prompt):
+    """Retries on 429 errors"""
+    # Using 1.5-flash because it has the most reliable 'Free' quota in 2026
+    model_id = 'gemini-1.5-flash' 
+    for attempt in range(3):
+        try:
+            return client.models.generate_content(model=model_id, contents=prompt)
+        except Exception as e:
+            if "429" in str(e):
+                print(f"⏳ Quota hit, waiting 10s (Attempt {attempt+1}/3)...")
+                time.sleep(10)
+            else:
+                raise e
+    return None
+
 def scout_market():
-    print("🚀 Starting Fully Autonomous Unwatched Scout...")
-    model_id = 'gemini-2.0-flash-001' # Updated to latest stable
-
-    # PHASE 1: Identify Niche
-    try:
-        niche_prompt = "Identify a 2026 tech niche with high knowledge debt. Return ONLY a YouTube search query."
-        query_res = client.models.generate_content(model=model_id, contents=niche_prompt)
-        query = query_res.text.strip().replace('"', '')
-        print(f"🔍 Searching YouTube for: {query}")
-    except Exception as e:
-        print(f"⚠️ Gemini Thinking Error: {e}")
-        return
-
-    # PHASE 2: Dynamic Search
-    # If this fails, it's likely the 'search' endpoint name changed to 'youtube/search' or similar
-    search_results = get_supadata("youtube/search", {"query": query}) # Updated path
+    print("🚀 Starting Quota-Proof Unwatched Scout...")
     
+    # PHASE 1: Niche
+    niche_prompt = "Identify a 2026 tech niche with high knowledge debt. Return ONLY a YouTube search query."
+    res = safe_generate(niche_prompt)
+    if not res: return
+    
+    query = res.text.strip().replace('"', '')
+    print(f"🔍 Searching: {query}")
+
+    # PHASE 2: Search (Trying 'youtube/search' first, then 'search')
+    search_results = get_supadata("youtube/search", {"query": query})
     if not search_results or "videos" not in search_results:
-        # Fallback: Trying alternative endpoint if first one fails
-        print("🔄 Trying alternative search endpoint...")
         search_results = get_supadata("search", {"query": query, "type": "video"})
 
     videos = search_results.get("videos", []) if search_results else []
-
     if not videos:
-        print("❌ No videos found. Check Supadata API docs for 'search' endpoint path.")
+        print("❌ No videos found via Supadata.")
         return
 
     # PHASE 3: Process Top Video
     top_video = max(videos, key=lambda x: int(x.get('commentCount', 0)) if x.get('commentCount') else 0)
     video_url = f"https://www.youtube.com/watch?v={top_video['id']}"
-    print(f"📊 Analyzing: {top_video['title']} ({top_video.get('commentCount')} comments)")
+    print(f"📊 Analyzing: {top_video['title']}")
 
-    # PHASE 4: Transcript & Synthesis
+    # PHASE 4: Synthesis
     transcript_data = get_supadata("transcript", {"url": video_url, "text": "true"})
-    transcript_text = transcript_data.get("content", "") if transcript_data else ""
+    transcript_text = transcript_data.get("content", "") if transcript_data else "No transcript available."
 
     analysis_prompt = (
         f"Analyze for Unwatched App:\nVideo: {top_video['title']}\n"
@@ -69,17 +70,15 @@ def scout_market():
         "Output Markdown: Trap, Fix, Signal Score."
     )
     
-    report = client.models.generate_content(model=model_id, contents=analysis_prompt).text
+    report_res = safe_generate(analysis_prompt)
+    if not report_res: return
 
     # PHASE 5: Log
     with open("market_research.md", "a") as f:
         f.write(f"\n\n---\n### 📈 Trend: {datetime.now().strftime('%Y-%m-%d')} | {top_video['title']}\n")
-        f.write(f"**URL:** {video_url}\n{report}")
+        f.write(f"**URL:** {video_url}\n{report_res.text}")
     
-    print(f"✅ Research complete.")
+    print("✅ Research complete.")
 
 if __name__ == "__main__":
-    if not SUPA_KEY or not os.environ.get("GEMINI_API_KEY"):
-        print("❌ Missing API Keys in Secrets.")
-    else:
-        scout_market()
+    scout_market()
