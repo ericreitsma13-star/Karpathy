@@ -87,3 +87,23 @@ Key features of this skill block would include:
 
 **Signal Score**: 9/10
 This represents a very high level of developer/user pain. Content consumption is severely hampered when the core message (lyrics in this case) is presented in an unexpected or ununderstood language. For an app aiming to improve content engagement, a language barrier is a critical flaw that completely breaks the user experience for a significant portion of a global audience. Users are forced to manually copy-paste text into external translators, which is highly disruptive, inefficient, and reduces the perceived value of the in-app transcript feature.
+
+---
+### 📈 Trend: 2026-03-19 | Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)
+**Trap:**
+The core trap for an "Unwatched App" embodying the characteristics of this content is its reliance on a singular, repetitive, and meme-driven experience. While the "Never Gonna Give You Up" theme is highly recognizable and evokes strong initial engagement due to nostalgia or humor (rickrolling), an app built solely around this concept quickly faces:
+1.  **Novelty Decay:** The initial amusement or curiosity wears off rapidly once the user has experienced the core "joke" or message.
+2.  **Lack of Depth/Variety:** The repetitive lyrical structure and singular theme, while iconic, offer limited avenues for sustained engagement or diverse utility, leading to user fatigue.
+3.  **Limited Core Value:** If the app's value proposition is too narrow—such as being just a "rickrolling generator" or a simple loyalty message—it fails to provide ongoing, evolving reasons for users to return regularly.
+
+**Fix:**
+To transform such an app from "unwatched" to engaged, the following strategies are crucial:
+1.  **Diversify & Expand Content/Features:** Move beyond the singular "rickroll" or "never give up" theme. Integrate this iconic content as *one feature* within a broader ecosystem (e.g., a comprehensive meme creation suite, a diverse music discovery platform, or a multifaceted motivational tool).
+2.  **Personalization & Adaptability:** Translate the "never give up" message into personalized user support or tailored experiences. For example, a habit-tracking app could adapt its motivational messages based on user progress, or a social app could offer dynamic content related to user interests.
+3.  **Evolve Value Proposition:** Regularly update the app with new content, challenges, social interaction features, or gamification elements to provide continuous reasons for users to return and explore.
+4.  **Community & Sharing:** Leverage the meme-worthy aspect by enabling user-generated content, sharing features, or community interactions that allow users to create and propagate their own versions or applications of the theme.
+
+**Signal Score:** 2/5 (Low-Medium)
+
+**Justification:**
+The "Signal Score" assesses the inherent potential of the app's core message/content to drive *sustained* user engagement, preventing it from becoming "unwatched." While the content has an extremely high initial recognition and engagement signal (due to its meme status, catchy tune, and universally positive message of loyalty), this is primarily an *initial acquisition* signal. Its inherent repetitiveness and singular thematic focus provide a relatively weak signal for *long-term, diverse utility or evolving engagement* within an app. Without significant additional features or dynamic content, the signal for sustained relevance and daily use is low, making it highly prone to being downloaded for a quick laugh or single use, and then becoming "unwatched."
