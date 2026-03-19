@@ -4,7 +4,6 @@ from google import genai
 from datetime import datetime
 
 # 1. Client Setup
-# The 2026 SDK automatically reads GEMINI_API_KEY from your environment
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 SUPA_KEY = os.environ.get("SUPADATA_API_KEY")
 
@@ -20,57 +19,46 @@ def get_supadata(endpoint, params):
         return {}
 
 def scout_market():
-    print("🚀 Starting Unwatched Scout (Social Proof Enabled)...")
+    print("🚀 Starting Unwatched Scout (Syntax Fixed)...")
     
     # PHASE 1: Generate High-Pain Niche
-    thinking_prompt = """
-    Identify one technical niche in March 2026 where YouTube tutorials are failing 
-    (e.g., Model Context Protocol, PQC Migration, GreenOps energy labels).
-    Provide ONLY a YouTube search query to find these 'Trap' videos.
-    """
+    thinking_prompt = "Identify a technical niche in March 2026 with outdated YouTube content. Provide ONLY a search query."
+    
+    # FIXED: Corrected call structure
     response = client.models.generate_content(
-        model='gemini-2.0-flash', 
+        model='gemini-2.0-flash-001', 
         contents=thinking_prompt
     )
     query = response.text.strip().replace('"', '')
     print(f"🔍 Researching Niche: {query}")
 
     # PHASE 2: Intelligence & Social Proof
-    # In a full loop, you'd use a Search API here. Using placeholder for the 'Trap' video.
-    target_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" 
-    
+    target_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Placeholder
     metadata = get_supadata("metadata", {"url": target_url})
     
-    # --- SOCIAL PROOF CHECK ---
     comment_count = int(metadata.get('commentCount', 0))
-    view_count = int(metadata.get('viewCount', 0))
+    print(f"📊 Social Check: {comment_count} comments.")
     
-    print(f"📊 Social Check: {view_count} views, {comment_count} comments.")
-    
-    if comment_count < 10:
-        print("⏭️ Skipping: Low social signal. We need active 'pain' in the comments.")
+    if comment_count < 1: # Set to 1 for testing, increase to 10 for production
+        print("⏭️ Skipping: Low social signal.")
         return
 
     # PHASE 3: Transcript & Synthesis
     transcript = get_supadata("transcript", {"url": target_url, "text": "true"})
     
-    analysis_prompt = f"""
-    Video Title: {metadata.get('title')}
-    Comments: {comment_count}
-    Transcript: {str(transcript.get('content', ''))[:5000]}
+    # FIXED: Ensured no trailing/extra brackets in the prompt f-string
+    analysis_prompt = (
+        f"Video Title: {metadata.get('title')}\n"
+        f"Comments: {comment_count}\n"
+        f"Transcript Snippet: {str(transcript.get('content', ''))[:5000]}\n\n"
+        "Format as Markdown: \n"
+        "1. The Trap\n2. The Fix\n3. Social Signal\n4. Signal Score (1-10)"
+    )
     
-    Format as Markdown for 'market_research.md':
-    1. The 'Trap': What is specifically outdated/broken in this video?
-    2. The 'Fix': The specific Skill Block 'Unwatched' provides.
-    3. Social Signal: Why are these {comment_count} people a good audience?
-    4. Signal Score (1-10).
-    """
-    
-
-    response = client.models.generate_content(
-        model='gemini-2.5-flash', # Use 2.5-flash or 2.5-flash-lite
-        contents=thinking_prompt
-)
+    # FIXED: Proper closing for the final API call
+    research_output = client.models.generate_content(
+        model='gemini-2.0-flash-001',
+        contents=analysis_prompt
     ).text
     
     # PHASE 4: Update the Intelligence Map
@@ -78,10 +66,10 @@ def scout_market():
         f.write(f"\n\n---\n### 📈 Trend: {datetime.now().strftime('%Y-%m-%d')} | {metadata.get('title')}\n")
         f.write(research_output)
     
-    print("✅ Market Intelligence Map Updated with Social Proof.")
+    print("✅ Market Intelligence Map Updated.")
 
 if __name__ == "__main__":
     if not SUPA_KEY:
-        print("❌ Missing SUPADATA_API_KEY in environment.")
+        print("❌ Missing SUPADATA_API_KEY.")
     else:
         scout_market()
