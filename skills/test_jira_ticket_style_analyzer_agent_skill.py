@@ -1,5 +1,5 @@
 import sys
-from proposed_skill import *
+from skills.jira_ticket_style_analyzer_agent_skill import *
 
 import pytest
 import inspect

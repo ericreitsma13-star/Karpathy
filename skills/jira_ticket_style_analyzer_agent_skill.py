@@ -1,3 +1,10 @@
+"""
+Skill: Jira Ticket Style Analyzer Agent Skill
+Source: https://youtube.com/watch?v=vzu06KGTOrQ
+Title: February Databricks Updates: Lakebase Autoscaling, Knowledge Assistant AI, and Sharing to Iceberg
+Added: 2026-03-19
+"""
+
 import inspect
 import json
 
