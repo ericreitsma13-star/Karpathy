@@ -35,3 +35,28 @@ Here's a summary of the key insights from the provided YouTube video transcript,
 **Key Takeaway for Beginners:**
 
 The video's central message is that **Cursor AI and similar tools have democratized app development**. You can learn to build functional applications by leveraging AI and following guided processes, even if you've never written a line of code before. The tutorial focuses on a practical, real-world example to demonstrate this transformative capability.
+
+---
+### 📈 2026-03-19 | FastMCP Calculator
+**Source:** https://youtube.com/watch?v=DosHnyq78xY — Intro to MCP Servers – Model Context Protocol with Python Course
+**Iterations to convergence:** 1
+
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.11.15/x64/bin/python
+cachedir: .pytest_cache
+rootdir: /home/runner/work/Karpathy/Karpathy
+plugins: anyio-4.12.1
+collecting ... collected 7 items
+
+test_proposed_skill.py::test_multiply_positive_numbers PASSED            [ 14%]
+test_proposed_skill.py::test_multiply_negative_numbers PASSED            [ 28%]
+test_proposed_skill.py::test_multiply_with_zero PASSED                   [ 42%]
+test_proposed_skill.py::test_add_positive_numbers PASSED                 [ 57%]
+test_proposed_skill.py::test_add_negative_numbers PASSED                 [ 71%]
+test_proposed_skill.py::test_add_with_zero PASSED                        [ 85%]
+test_proposed_skill.py::test_add_mixed_precision PASSED                  [100%]
+
+============================== 7 passed in 0.02s ===============================
+
+```

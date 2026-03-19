@@ -1,13 +1,23 @@
-from fastmcp import FastMCP
-
-mcp = FastMCP(name="calculator")
-
-@mcp.tool(args={"a": float, "b": float}, returns=float)
 def multiply(a: float, b: float) -> float:
-    """Multiplies two numbers."""
+    """Multiplies two numbers together.
+
+    Args:
+        a: The first number.
+        b: The second number.
+
+    Returns:
+        The product of a and b.
+    """
     return a * b
 
-@mcp.tool(args={"a": float, "b": float}, returns=float)
 def add(a: float, b: float) -> float:
-    """Adds two numbers."""
+    """Adds two numbers together.
+
+    Args:
+        a: The first number.
+        b: The second number.
+
+    Returns:
+        The sum of a and b.
+    """
     return a + b
