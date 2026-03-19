@@ -66,9 +66,11 @@ def scout_market():
     4. Signal Score (1-10).
     """
     
-    research_output = client.models.generate_content(
-        model='gemini-2.0-flash',
-        contents=analysis_prompt
+
+    response = client.models.generate_content(
+        model='gemini-2.5-flash', # Use 2.5-flash or 2.5-flash-lite
+        contents=thinking_prompt
+)
     ).text
     
     # PHASE 4: Update the Intelligence Map
