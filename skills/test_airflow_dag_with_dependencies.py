@@ -1,5 +1,5 @@
 import sys
-from proposed_skill import *
+from skills.airflow_dag_with_dependencies import *
 
 import pytest
 from datetime import datetime

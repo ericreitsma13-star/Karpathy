@@ -1,3 +1,10 @@
+"""
+Skill: airflow_dag_with_dependencies
+Source: https://youtube.com/watch?v=5peQThvQmQk
+Title: Learn Apache Airflow in 10 Minutes | High-Paying Skills for Data Engineers
+Added: 2026-03-20
+"""
+
 from datetime import datetime
 
 # This module defines an Apache Airflow Directed Acyclic Graph (DAG).
