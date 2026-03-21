@@ -1,5 +1,5 @@
 import sys
-from proposed_skill import *
+from skills.databricks_job_dependency_advisor_skill import *
 
 import pytest
 

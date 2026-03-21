@@ -1,1 +1,1 @@
-Apache Iceberg metadata LLM agent
+Agentic data engineering with Apache Iceberg

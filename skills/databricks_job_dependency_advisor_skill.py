@@ -1,3 +1,10 @@
+"""
+Skill: Databricks Job Dependency Advisor Skill
+Source: https://youtube.com/watch?v=vzu06KGTOrQ
+Title: February Databricks Updates: Lakebase Autoscaling, Knowledge Assistant AI, and Sharing to Iceberg
+Added: 2026-03-21
+"""
+
 class JobDependencyAdvisor:
     """
     A skill to provide advice on managing job dependencies in Databricks.
