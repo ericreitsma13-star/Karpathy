@@ -99,3 +99,23 @@ test_proposed_skill.py::test_get_dependency_advice_general PASSED        [ 16%]
 test_proposed_skill.py::test_get_dependency_advice_notebook PASSED       [ 33%]
 test_proposed_skill
 ```
+
+
+---
+### 📈 2026-03-23 | apache_iceberg_metadata_model
+**Source:** https://youtube.com/watch?v=TsmhRZElPvM — Apache Iceberg: What It Is and Why Everyone’s Talking About It.
+**Relevant to goal:** ✅ Yes
+**Iterations to convergence:** 1
+
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.11.15/x64/bin/python
+cachedir: .pytest_cache
+rootdir: /home/runner/work/Karpathy/Karpathy
+plugins: anyio-4.12.1
+collecting ... collected 8 items
+
+test_proposed_skill.py::test_data_file_creation PASSED                   [ 12%]
+test_proposed_skill.py::test_manifest_file_creation PASSED               [ 25%]
+test_proposed_skill
+```

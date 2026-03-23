@@ -1,12 +1,39 @@
+# apache_iceberg_metadata_model
+
+**Source:** [Apache Iceberg: What It Is and Why Everyone’s Talking About It.](https://youtube.com/watch?v=TsmhRZElPvM)
+**Added:** 2026-03-23
+
+```markdown
+## What this is
+This Python code provides a simplified, in-memory implementation of the core Apache Iceberg metadata model. It defines classes representing the hierarchical structure of an Iceberg table: `IcebergDataFile`, `IcebergManifestFile`, `IcebergManifestList`, `IcebergSnapshot`, `IcebergMetadataFile`, and an `IcebergCatalog`.
+
+It's designed to illustrate the key concepts of how Iceberg tracks data files, manages schema and partition evolution, and enables features like time travel, without integrating with actual storage systems or distributed processing engines.
+
+## The problem it solves
+Traditional data lake table formats (like raw Parquet/ORC folders with Hive Metastore) often struggle with:
+*   **ACID Guarantees:** Lack of atomic commits for writes, leading to inconsistent reads during concurrent operations.
+*   **Consistent Views:** Difficult to get a consistent view of the table at a specific point in time.
+*   **Schema Evolution:** Complex and error-prone schema changes (adding/renaming/dropping columns) often requiring data rewrites.
+*   **Partition Evolution:** Inability to change partitioning strategies without rewriting all data.
+*   **Time Travel:** No native mechanism to query past states of the data.
+*   **Efficient Query Planning:** Difficulty in pruning data efficiently based on file-level statistics.
+
+This conceptual model demonstrates how Iceberg's layered metadata (data files -> manifests -> manifest lists -> snapshots) addresses these issues by providing a clear, immutable record of table state changes, enabling consistent views, flexible evolution, and optimized data access.
+
+## How to use it (with a short code example)
+
+This example demonstrates creating an Iceberg table, ingesting data (simulated by adding snapshots), and performing schema evolution and time travel.
+
+```python
 import uuid
 import time
 import json
 
+# (Paste the full class definitions for IcebergDataFile, IcebergManifestFile,
+# IcebergManifestList, IcebergSnapshot, IcebergMetadataFile, IcebergCatalog here)
+
 class IcebergDataFile:
-    """
-    Represents a data file (e.g., Parquet) as described in Iceberg's data layer.
-    Includes metadata relevant for query optimization.
-    """
+    # ... (class definition from original code) ...
     def __init__(self, path: str, size: int, record_count: int,
                  column_stats: dict = None, partition_values: dict = None):
         if not path or not isinstance(path, str):
@@ -35,11 +62,7 @@ class IcebergDataFile:
         }
 
 class IcebergManifestFile:
-    """
-    Represents an Iceberg manifest file, which lists data files
-    and their associated metadata (like schema ID, partition spec ID).
-    Conceptually, this is also a file in the blob store.
-    """
+    # ... (class definition from original code) ...
     def __init__(self, manifest_path: str, data_files: list, # Changed type hint to avoid direct dependency on IcebergDataFile for lists
                  schema_id: int, partition_spec_id: int, added_snapshot_id: int):
         if not manifest_path or not isinstance(manifest_path, str):
@@ -72,11 +95,7 @@ class IcebergManifestFile:
         }
 
 class IcebergManifestList:
-    """
-    Represents an Iceberg manifest list file, which points to multiple
-    manifest files, allowing collection of data from multiple ingest events.
-    Conceptually, this is also a file in the blob store.
-    """
+    # ... (class definition from original code) ...
     def __init__(self, manifest_list_path: str, manifest_files: list, # Changed type hint
                  snapshot_id: int):
         if not manifest_list_path or not isinstance(manifest_list_path, str):
@@ -99,10 +118,7 @@ class IcebergManifestList:
         }
 
 class IcebergSnapshot:
-    """
-    Represents a single snapshot of an Iceberg table, pointing to a ManifestList.
-    This enables consistent views of the table.
-    """
+    # ... (class definition from original code) ...
     def __init__(self, snapshot_id: int, manifest_list: IcebergManifestList,
                  timestamp_ms: int = None, parent_snapshot_id: int = None,
                  operation: str = "append"):
@@ -132,10 +148,7 @@ class IcebergSnapshot:
         }
 
 class IcebergMetadataFile:
-    """
-    The central metadata file for an Iceberg table, containing current schema,
-    partition specs, and a history of snapshots. This is what the catalog points to.
-    """
+    # ... (class definition from original code) ...
     def __init__(self, table_location: str, table_uuid: str = None,
                  current_schema: dict = None, partition_specs: list = None):
         if not table_location or not isinstance(table_location, str):
@@ -172,14 +185,12 @@ class IcebergMetadataFile:
             new_schema_id = max(self.schemas.keys()) + 1
             self.schemas[new_schema_id] = new_schema
             self.current_schema_id = new_schema_id
-            # print(f"Schema evolved to ID: {new_schema_id}") # Commented out print for clean output
 
         # Update partition spec if provided
         if new_partition_spec:
             new_partition_spec_id = max(self.partition_specs.keys()) + 1
             self.partition_specs[new_partition_spec_id] = new_partition_spec
             self.default_partition_spec_id = new_partition_spec_id
-            # print(f"Partition spec evolved to ID: {new_partition_spec_id}") # Commented out print for clean output
 
 
         snapshot = IcebergSnapshot(
@@ -192,7 +203,6 @@ class IcebergMetadataFile:
         self.current_snapshot_id = snapshot_id
         self.snapshot_log.append({"snapshot_id": snapshot_id, "timestamp_ms": snapshot.timestamp_ms})
         self.last_updated_ms = int(time.time() * 1000)
-        # print(f"Added snapshot {snapshot_id} for table {self.table_location}") # Commented out print for clean output
         return snapshot
 
     def get_current_snapshot(self) -> IcebergSnapshot | None:
@@ -232,12 +242,8 @@ class IcebergMetadataFile:
             # Placeholder for sort orders, refs, etc.
         }
 
-
 class IcebergCatalog:
-    """
-    A conceptual Iceberg Catalog that maps table names to their MetadataFile locations.
-    Can be pluggable (Hive Metastore, JDBC, in-memory for this example).
-    """
+    # ... (class definition from original code) ...
     def __init__(self, catalog_name: str = "default_catalog"):
         self.catalog_name = catalog_name
         self._tables: dict = {} # In-memory storage
@@ -254,16 +260,13 @@ class IcebergCatalog:
             partition_specs=[partition_spec] if partition_spec else []
         )
         self._tables[table_name] = metadata_file
-        # print(f"Table '{table_name}' created at '{table_location}'.") # Commented out print for clean output
         return metadata_file
 
     def drop_table(self, table_name: str) -> None:
         """Removes a table from the catalog."""
         if table_name in self._tables:
             del self._tables[table_name]
-            # print(f"Table '{table_name}' dropped.") # Commented out print for clean output
         else:
-            # print(f"Table '{table_name}' not found.") # Commented out print for clean output
             pass # No error for non-existent drop, mimicking some systems
 
     def load_table(self, table_name: str) -> IcebergMetadataFile:
@@ -285,124 +288,107 @@ class IcebergCatalog:
             }
         }
 
-# The example usage below is for demonstration and not part of the reusable module.
-# It's commented out to ensure the module is self-contained without direct execution logic.
-# def simulate_iceberg_workflow():
-#     catalog = IcebergCatalog()
+# --- Example Usage ---
+catalog = IcebergCatalog()
 
-#     # 1. Create a table
-#     initial_schema = {
-#         "schema_id": 0,
-#         "fields": [
-#             {"id": 1, "name": "timestamp", "type": "long", "required": True},
-#             {"id": 2, "name": "device_id", "type": "string", "required": True},
-#             {"id": 3, "name": "temperature", "type": "float", "required": False},
-#         ]
-#     }
-#     thermostats_table_metadata = catalog.create_table(
-#         "thermostats", "s3://my-data-lake/thermostats",
-#         schema=initial_schema,
-#         partition_spec={"spec_id": 0, "fields": [{"field_id": 1000, "source_id": 1, "transform": "day", "name": "dt"}]}
-#     )
+# 1. Create a table with an initial schema and partition spec
+initial_schema = {
+    "schema_id": 0,
+    "fields": [
+        {"id": 1, "name": "timestamp", "type": "long", "required": True},
+        {"id": 2, "name": "device_id", "type": "string", "required": True},
+        {"id": 3, "name": "temperature", "type": "float", "required": False},
+    ]
+}
+partition_spec = {"spec_id": 0, "fields": [{"field_id": 1000, "source_id": 1, "transform": "day", "name": "dt"}]}
+thermostats_table = catalog.create_table(
+    "thermostats", "s3://my-data-lake/thermostats",
+    schema=initial_schema,
+    partition_spec=partition_spec
+)
+print("Table 'thermostats' created.")
 
-#     # 2. First Ingest (creates data files, manifest file, manifest list, and a snapshot)
-#     data_file_1 = IcebergDataFile(
-#         path="s3://my-data-lake/thermostats/data/2023/01/01/data_001.parquet",
-#         size=1024, record_count=100,
-#         column_stats={"temperature": {"min": 20.0, "max": 25.5}},
-#         partition_values={"dt": "2023-01-01"}
-#     )
-#     data_file_2 = IcebergDataFile(
-#         path="s3://my-data-lake/thermostats/data/2023/01/01/data_002.parquet",
-#         size=2048, record_count=200,
-#         column_stats={"temperature": {"min": 21.0, "max": 26.0}},
-#         partition_values={"dt": "2023-01-01"}
-#     )
+# 2. Simulate First Ingest (creates data files, manifest, manifest list, and a snapshot)
+data_file_1 = IcebergDataFile(
+    path="s3://my-data-lake/thermostats/data/2023/01/01/data_001.parquet",
+    size=1024, record_count=100, column_stats={"temperature": {"min": 20.0}}, partition_values={"dt": "2023-01-01"}
+)
+manifest_file_1 = IcebergManifestFile(
+    manifest_path="s3://my-data-lake/thermostats/metadata/manifest-1.avro",
+    data_files=[data_file_1], schema_id=0, partition_spec_id=0, added_snapshot_id=0
+)
+manifest_list_0 = IcebergManifestList(
+    manifest_list_path="s3://my-data-lake/thermostats/metadata/snap-0-manifest-list.avro",
+    manifest_files=[manifest_file_1], snapshot_id=0
+)
+snapshot_0 = thermostats_table.add_snapshot(manifest_list_0, operation="append")
+print(f"\nSnapshot {snapshot_0.snapshot_id} (first ingest) added at {snapshot_0.timestamp_ms}.")
 
-#     manifest_file_1 = IcebergManifestFile(
-#         manifest_path="s3://my-data-lake/thermostats/metadata/manifest-1.avro",
-#         data_files=[data_file_1, data_file_2],
-#         schema_id=0,
-#         partition_spec_id=0,
-#         added_snapshot_id=0
-#     )
+# 3. Simulate Second Ingest (new data files, new manifest file, updated manifest list, new snapshot)
+time.sleep(0.01) # Ensure distinct timestamp
+data_file_2 = IcebergDataFile(
+    path="s3://my-data-lake/thermostats/data/2023/01/02/data_002.parquet",
+    size=2048, record_count=200, column_stats={"temperature": {"min": 21.0}}, partition_values={"dt": "2023-01-02"}
+)
+manifest_file_2 = IcebergManifestFile(
+    manifest_path="s3://my-data-lake/thermostats/metadata/manifest-2.avro",
+    data_files=[data_file_2], schema_id=0, partition_spec_id=0, added_snapshot_id=1
+)
+# Note: In a real Iceberg, manifest_list_1 would combine manifest_file_1 AND manifest_file_2 for an append
+# For simplicity here, we'll create a new one pointing to both existing manifests.
+manifest_list_1 = IcebergManifestList(
+    manifest_list_path="s3://my-data-lake/thermostats/metadata/snap-1-manifest-list.avro",
+    manifest_files=[manifest_file_1, manifest_file_2], snapshot_id=1 # Combines previous and new manifests
+)
+snapshot_1 = thermostats_table.add_snapshot(manifest_list_1, operation="append")
+print(f"Snapshot {snapshot_1.snapshot_id} (second ingest) added at {snapshot_1.timestamp_ms}.")
 
-#     manifest_list_0 = IcebergManifestList(
-#         manifest_list_path="s3://my-data-lake/thermostats/metadata/snap-0-manifest-list.avro",
-#         manifest_files=[manifest_file_1],
-#         snapshot_id=0
-#     )
+# 4. Simulate Schema Evolution
+time.sleep(0.01) # Ensure distinct timestamp
+evolved_schema = {
+    "schema_id": 1,
+    "fields": initial_schema["fields"] + [{"id": 4, "name": "humidity", "type": "float", "required": False}]
+}
+manifest_list_2 = IcebergManifestList(
+    manifest_list_path="s3://my-data-lake/thermostats/metadata/snap-2-manifest-list.avro",
+    manifest_files=[manifest_file_1, manifest_file_2], # The data files haven't changed, only schema
+    snapshot_id=2
+)
+snapshot_2 = thermostats_table.add_snapshot(manifest_list_2, operation="schema_evolution", new_schema=evolved_schema)
+print(f"Snapshot {snapshot_2.snapshot_id} (schema evolution) added at {snapshot_2.timestamp_ms}.")
+print(f"Current schema (ID {thermostats_table.current_schema_id}): {json.dumps(thermostats_table.schemas[thermostats_table.current_schema_id], indent=2)}")
 
-#     thermostats_table_metadata.add_snapshot(manifest_list_0, operation="append")
-#     # print("\n--- After First Ingest ---")
-#     # print(json.dumps(thermostats_table_metadata.get_current_snapshot().to_json_serializable(), indent=2))
-#     # print(f"Current table schema ID: {thermostats_table_metadata.current_schema_id}")
+# 5. Demonstrate Time Travel
+print("\n--- Time Travel Simulation ---")
+travel_time_after_first_ingest = snapshot_0.timestamp_ms + 1
+past_snapshot = thermostats_table.time_travel(travel_time_after_first_ingest)
+if past_snapshot:
+    print(f"Time travel to {travel_time_after_first_ingest}: Found snapshot ID {past_snapshot.snapshot_id}")
+    print(f"  Manifest list path: {past_snapshot.manifest_list.manifest_list_path}")
+    # In a real system, you'd then load this manifest list to get data files
 
-#     # 3. Second Ingest (new data files, new manifest file, updated manifest list, new snapshot)
-#     data_file_3 = IcebergDataFile(
-#         path="s3://my-data-lake/thermostats/data/2023/01/02/data_003.parquet",
-#         size=1536, record_count=150,
-#         column_stats={"temperature": {"min": 22.0, "max": 27.0}},
-#         partition_values={"dt": "2023-01-02"}
-#     )
+travel_time_before_schema_evol = snapshot_1.timestamp_ms + 1
+past_snapshot_before_schema = thermostats_table.time_travel(travel_time_before_schema_evol)
+if past_snapshot_before_schema:
+    print(f"Time travel to {travel_time_before_schema_evol} (before schema evol): Found snapshot ID {past_snapshot_before_schema.snapshot_id}")
+    # Current schema at this point would be initial_schema (ID 0)
+    print(f"  Manifest list path: {past_snapshot_before_schema.manifest_list.manifest_list_path}")
 
-#     manifest_file_2 = IcebergManifestFile(
-#         manifest_path="s3://my-data-lake/thermostats/metadata/manifest-2.avro",
-#         data_files=[data_file_3],
-#         schema_id=0,
-#         partition_spec_id=0,
-#         added_snapshot_id=1 # This manifest was added in snapshot 1
-#     )
+print("\n--- Full Table Metadata (Current State) ---")
+print(json.dumps(thermostats_table.to_json_serializable(), indent=2))
+```
 
-#     # A new manifest list combining previous manifest file and the new one
-#     manifest_list_1 = IcebergManifestList(
-#         manifest_list_path="s3://my-data-lake/thermostats/metadata/snap-1-manifest-list.avro",
-#         manifest_files=[manifest_file_1, manifest_file_2], # Old manifest + new manifest
-#         snapshot_id=1
-#     )
-#     thermostats_table_metadata.add_snapshot(manifest_list_1, operation="append")
-#     # print("\n--- After Second Ingest ---")
-#     # current_snap = thermostats_table_metadata.get_current_snapshot()
-#     # print(json.dumps(current_snap.to_json_serializable(), indent=2))
-#     # print(f"Snapshot parent ID: {current_snap.parent_snapshot_id}")
+## What real-world tool this relates to
+This skill directly relates to **Apache Iceberg**, a high-performance open table format for huge analytic datasets. It provides the foundational understanding for how Iceberg manages table state and data files, which powers:
+*   **Data Lakehouses:** Providing database-like capabilities (ACID, schema evolution, time travel) on object storage (S3, ADLS, GCS).
+*   **Query Engines:** Used by Spark, Flink, Trino, Presto, Dremio, and even cloud data warehouses like Google BigQuery (via BigLake) and AWS Athena/EMR.
+*   **Data Ingestion and Transformation:** Enabling reliable and efficient data pipelines.
 
-#     # 4. Schema Evolution
-#     evolved_schema = {
-#         "schema_id": 1,
-#         "fields": [
-#             {"id": 1, "name": "timestamp", "type": "long", "required": True},
-#             {"id": 2, "name": "device_id", "type": "string", "required": True},
-#             {"id": 3, "name": "temperature", "type": "float", "required": False},
-#             {"id": 4, "name": "humidity", "type": "float", "required": False}, # New column
-#         ]
-#     }
-#     # For schema evolution, typically a new snapshot is created that refers to the new schema
-#     # but the manifest list might still refer to old data files (which will have nulls for new column)
-#     # or new manifest lists point to new data files with updated schema.
-#     # Here we simulate by just updating the schema in a new snapshot.
-#     manifest_list_2 = IcebergManifestList(
-#         manifest_list_path="s3://my-data-lake/thermostats/metadata/snap-2-manifest-list.avro",
-#         manifest_files=[manifest_file_1, manifest_file_2], # For simplicity, re-using previous manifest files
-#         snapshot_id=2
-#     )
-#     thermostats_table_metadata.add_snapshot(manifest_list_2, operation="overwrite", new_schema=evolved_schema)
-#     # print("\n--- After Schema Evolution ---")
-#     # print(json.dumps(thermostats_table_metadata.get_current_snapshot().to_json_serializable(), indent=2))
-#     # print(f"Current table schema ID: {thermostats_table_metadata.current_schema_id}")
-#     # print(json.dumps(thermostats_table_metadata.schemas[thermostats_table_metadata.current_schema_id], indent=2))
-
-#     # 5. Time Travel
-#     first_snapshot_time = thermostats_table_metadata.snapshots[0].timestamp_ms
-#     travel_time = first_snapshot_time + 10 # Just after the first snapshot
-#     past_snapshot = thermostats_table_metadata.time_travel(travel_time)
-#     # print(f"\n--- Time Travel to {travel_time} ---")
-#     # if past_snapshot:
-#     #     print(f"Found snapshot ID: {past_snapshot.snapshot_id}")
-#     # else:
-#     #     print("No snapshot found for the given time.")
-
-#     # print("\n--- Catalog State ---")
-#     # print(json.dumps(catalog.to_json_serializable(), indent=2))
-
-# if __name__ == "__main__":
-#     simulate_iceberg_workflow()
+## Limitations
+This is a conceptual model designed for educational purposes, not a production-ready Iceberg implementation. Key limitations include:
+*   **No actual data storage/retrieval:** Data files, manifest files, and manifest lists are represented by their paths and in-memory objects, but no actual file I/O to S3/HDFS/etc. occurs.
+*   **No distributed processing:** Operations are purely in-memory Python object manipulations, not distributed operations like Spark or Flink would perform.
+*   **Simplified concurrency:** Lacks real-world locking mechanisms and conflict resolution for concurrent writes.
+*   **Incomplete spec:** Omits many details of the full Iceberg specification (e.g., sort orders, delete files, other manifest entry states, richer schema evolution rules, table properties, branch/tag references).
+*   **Performance:** Not optimized for large-scale operations; intended for understanding logical flow.
+*   **Catalog Integration:** The `IcebergCatalog` is an in-memory dictionary, not a persistent catalog like Hive Metastore, AWS Glue, or Project Nessie.

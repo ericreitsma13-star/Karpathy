@@ -1,3 +1,10 @@
+"""
+Skill: apache_iceberg_metadata_model
+Source: https://youtube.com/watch?v=TsmhRZElPvM
+Title: Apache Iceberg: What It Is and Why Everyone’s Talking About It.
+Added: 2026-03-23
+"""
+
 import uuid
 import time
 import json
