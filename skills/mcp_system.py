@@ -1,3 +1,10 @@
+"""
+Skill: mcp_system
+Source: https://youtube.com/watch?v=eur8dUO9mvE
+Title: What is MCP? Integrate AI Agents with Databases & APIs
+Added: 2026-03-24
+"""
+
 import requests
 import json
 import time

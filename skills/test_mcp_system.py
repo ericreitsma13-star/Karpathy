@@ -1,5 +1,5 @@
 import sys
-from proposed_skill import *
+from skills.mcp_system import *
 
 import pytest
 from unittest.mock import Mock, patch
